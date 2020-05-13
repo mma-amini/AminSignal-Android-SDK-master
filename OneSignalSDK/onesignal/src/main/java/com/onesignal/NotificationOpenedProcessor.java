@@ -47,24 +47,24 @@ import static com.onesignal.GenerateNotification.BUNDLE_KEY_ONESIGNAL_DATA;
 
 // Process both notifications opens and dismisses.
 class NotificationOpenedProcessor {
-
+   
    private static final String TAG = NotificationOpenedProcessor.class.getCanonicalName();
-
+   
    static void processFromContext(Context context, Intent intent) {
       if (!isOneSignalIntent(intent))
          return;
-
+      
       OneSignal.setAppContext(context);
-
+      
       handleDismissFromActionButtonPress(context, intent);
-
+      
       processIntent(context, intent);
    }
-
+   
    private static boolean isOneSignalIntent(Intent intent) {
       return intent.hasExtra(BUNDLE_KEY_ONESIGNAL_DATA) || intent.hasExtra("summary") || intent.hasExtra(BUNDLE_KEY_ANDROID_NOTIFICATION_ID);
    }
-
+   
    private static void handleDismissFromActionButtonPress(Context context, Intent intent) {
       // Pressed an action button, need to clear the notification and close the notification area manually.
       if (intent.getBooleanExtra("action_button", false)) {
@@ -72,21 +72,21 @@ class NotificationOpenedProcessor {
          context.sendBroadcast(new Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS));
       }
    }
-
+   
    static void processIntent(Context context, Intent intent) {
       String summaryGroup = intent.getStringExtra("summary");
-
+      
       boolean dismissed = intent.getBooleanExtra("dismissed", false);
-
+      
       JSONArray dataArray = null;
       JSONObject jsonData = null;
       if (!dismissed) {
          try {
             jsonData = new JSONObject(intent.getStringExtra(BUNDLE_KEY_ONESIGNAL_DATA));
-
+            
             if (handleIAMPreviewOpen(context, jsonData))
                return;
-
+            
             jsonData.put(BUNDLE_KEY_ANDROID_NOTIFICATION_ID, intent.getIntExtra(BUNDLE_KEY_ANDROID_NOTIFICATION_ID, 0));
             intent.putExtra(BUNDLE_KEY_ONESIGNAL_DATA, jsonData.toString());
             dataArray = NotificationBundleProcessor.newJsonArray(new JSONObject(intent.getStringExtra(BUNDLE_KEY_ONESIGNAL_DATA)));
@@ -94,20 +94,20 @@ class NotificationOpenedProcessor {
             t.printStackTrace();
          }
       }
-
+      
       OneSignalDbHelper dbHelper = OneSignalDbHelper.getInstance(context);
       SQLiteDatabase writableDb = null;
-
+      
       try {
-         writableDb = dbHelper.getWritableDbWithRetries();
+         writableDb = dbHelper.getSQLiteDatabaseWithRetries();
          writableDb.beginTransaction();
-
+         
          // We just opened a summary notification.
          if (!dismissed && summaryGroup != null)
             addChildNotifications(dataArray, summaryGroup, writableDb);
-
+         
          markNotificationsConsumed(context, intent, writableDb, dismissed);
-
+         
          // Notification is not a summary type but a single notification part of a group.
          if (summaryGroup == null) {
             String group = intent.getStringExtra("grp");
@@ -126,36 +126,36 @@ class NotificationOpenedProcessor {
             }
          }
       }
-
+      
       if (!dismissed)
          OneSignal.handleNotificationOpen(context, dataArray,
-                 intent.getBooleanExtra("from_alert", false), OSNotificationFormatHelper.getOSNotificationIdFromJson(jsonData));
+                                          intent.getBooleanExtra("from_alert", false), OSNotificationFormatHelper.getOSNotificationIdFromJson(jsonData));
    }
-
+   
    static boolean handleIAMPreviewOpen(@NonNull Context context, @NonNull JSONObject jsonData) {
       String previewUUID = NotificationBundleProcessor.inAppPreviewPushUUID(jsonData);
       if (previewUUID == null)
          return false;
-
+      
       OneSignal.startOrResumeApp(context);
       OSInAppMessageController.getController().displayPreviewMessage(previewUUID);
       return true;
    }
-
+   
    private static void addChildNotifications(JSONArray dataArray, String summaryGroup, SQLiteDatabase writableDb) {
       String[] retColumn = { NotificationTable.COLUMN_NAME_FULL_DATA };
       String[] whereArgs = { summaryGroup };
-
+      
       Cursor cursor = writableDb.query(
-            NotificationTable.TABLE_NAME,
-            retColumn,
-            NotificationTable.COLUMN_NAME_GROUP_ID + " = ? AND " +   // Where String
-                  NotificationTable.COLUMN_NAME_DISMISSED + " = 0 AND " +
-                  NotificationTable.COLUMN_NAME_OPENED + " = 0 AND " +
-                  NotificationTable.COLUMN_NAME_IS_SUMMARY + " = 0",
-            whereArgs,
-            null, null, null);
-
+        NotificationTable.TABLE_NAME,
+        retColumn,
+        NotificationTable.COLUMN_NAME_GROUP_ID + " = ? AND " +   // Where String
+        NotificationTable.COLUMN_NAME_DISMISSED + " = 0 AND " +
+        NotificationTable.COLUMN_NAME_OPENED + " = 0 AND " +
+        NotificationTable.COLUMN_NAME_IS_SUMMARY + " = 0",
+        whereArgs,
+        null, null, null);
+      
       if (cursor.getCount() > 1) {
          cursor.moveToFirst();
          do {
@@ -167,15 +167,15 @@ class NotificationOpenedProcessor {
             }
          } while (cursor.moveToNext());
       }
-
+      
       cursor.close();
    }
-
+   
    private static void markNotificationsConsumed(Context context, Intent intent, SQLiteDatabase writableDb, boolean dismissed) {
       String summaryGroup = intent.getStringExtra("summary");
       String whereStr;
       String[] whereArgs = null;
-
+      
       if (summaryGroup != null) {
          boolean isGroupless = summaryGroup.equals(OneSignalNotificationManager.getGrouplessSummaryKey());
          if (isGroupless)
@@ -184,7 +184,7 @@ class NotificationOpenedProcessor {
             whereStr = NotificationTable.COLUMN_NAME_GROUP_ID + " = ?";
             whereArgs = new String[]{ summaryGroup };
          }
-
+         
          if (!dismissed) {
             // Make sure when a notification is not being dismissed it is handled through the dashboard setting
             boolean shouldDismissAll = OneSignal.getClearGroupSummaryClick();
@@ -194,19 +194,19 @@ class NotificationOpenedProcessor {
                String mostRecentId = String.valueOf(OneSignalNotificationManager.getMostRecentNotifIdFromGroup(writableDb, summaryGroup, isGroupless));
                whereStr += " AND " + NotificationTable.COLUMN_NAME_ANDROID_NOTIFICATION_ID + " = ?";
                whereArgs = isGroupless ?
-                       new String[]{ mostRecentId } :
-                       new String[]{ summaryGroup, mostRecentId };
+                           new String[]{ mostRecentId } :
+                           new String[]{ summaryGroup, mostRecentId };
             }
          }
       } else
          whereStr = NotificationTable.COLUMN_NAME_ANDROID_NOTIFICATION_ID + " = " + intent.getIntExtra(BUNDLE_KEY_ANDROID_NOTIFICATION_ID, 0);
-
-
+      
+      
       clearStatusBarNotifications(context, writableDb, summaryGroup);
       writableDb.update(NotificationTable.TABLE_NAME, newContentValuesWithConsumed(intent), whereStr, whereArgs);
       BadgeCountUpdater.update(writableDb, context);
    }
-
+   
    /**
     * Handles clearing the status bar notifications when opened
     */
@@ -227,18 +227,18 @@ class NotificationOpenedProcessor {
          }
       }
    }
-
+   
    private static ContentValues newContentValuesWithConsumed(Intent intent) {
       ContentValues values = new ContentValues();
-
+      
       boolean dismissed = intent.getBooleanExtra("dismissed", false);
-
+      
       if (dismissed)
          values.put(NotificationTable.COLUMN_NAME_DISMISSED, 1);
       else
          values.put(NotificationTable.COLUMN_NAME_OPENED, 1);
-
+      
       return values;
    }
-
+   
 }

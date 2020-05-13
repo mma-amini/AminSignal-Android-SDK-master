@@ -27,10 +27,6 @@
 
 package com.onesignal;
 
-import com.google.android.gms.location.LocationListener;
-import com.google.android.gms.location.LocationRequest;
-import com.onesignal.AndroidSupportV4Compat.ContextCompat;
-
 import android.content.Context;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
@@ -43,7 +39,10 @@ import android.support.annotation.NonNull;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.location.LocationListener;
+import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
+import com.onesignal.AndroidSupportV4Compat.ContextCompat;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -54,7 +53,7 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 class LocationGMS {
-
+   
    static class LocationPoint {
       Double lat;
       Double log;
@@ -63,70 +62,70 @@ class LocationGMS {
       Boolean bg;
       Long timeStamp;
    }
-
+   
    private static final long TIME_FOREGROUND_SEC = 5 * 60;
    private static final long TIME_BACKGROUND_SEC = 10 * 60;
    private static final long FOREGROUND_UPDATE_TIME_MS = (TIME_FOREGROUND_SEC - 30) * 1_000;
    private static final long BACKGROUND_UPDATE_TIME_MS = (TIME_BACKGROUND_SEC - 30) * 1_000;
-
+   
    private static GoogleApiClientCompatProxy mGoogleApiClient;
    private static Location mLastLocation;
    static String requestPermission;
    private static Context classContext;
-
+   
    private static LocationHandlerThread locationHandlerThread;
-
+   
    protected static final Object syncLock = new Object() {};
-
+   
    enum PermissionType {
       STARTUP, PROMPT_LOCATION, SYNC_SERVICE
    }
    interface LocationHandler {
       PermissionType getType();
-      void complete(LocationPoint point);
+      void onComplete(LocationPoint point);
    }
-
+   
    abstract static class LocationPromptCompletionHandler implements LocationHandler {
-      void onAnswered(boolean accepted) {}
+      void onAnswered(OneSignal.PromptActionResult result) {}
    }
-
+   
    private static ConcurrentHashMap<PermissionType, LocationHandler> locationHandlers = new ConcurrentHashMap<>();
    private static final List<LocationPromptCompletionHandler> promptHandlers = new ArrayList<>();
-
+   
    private static Thread fallbackFailThread;
-
+   
    private static boolean locationCoarse;
-
+   
    static boolean scheduleUpdate(Context context) {
       if (!hasLocationPermission(context) || !OneSignal.shareLocation)
          return false;
-
+      
       long lastTime = System.currentTimeMillis() - getLastLocationTime();
       long minTime = 1_000 * (OneSignal.isForeground() ? TIME_FOREGROUND_SEC : TIME_BACKGROUND_SEC);
       long scheduleTime = minTime - lastTime;
-
+      
       OneSignalSyncServiceUtils.scheduleLocationUpdateTask(context, scheduleTime);
       return true;
    }
-
+   
    private static void setLastLocationTime(long time) {
       OneSignalPrefs.saveLong(OneSignalPrefs.PREFS_ONESIGNAL,
-              OneSignalPrefs.PREFS_OS_LAST_LOCATION_TIME,time);
+                              OneSignalPrefs.PREFS_OS_LAST_LOCATION_TIME,time);
    }
-
+   
    private static long getLastLocationTime() {
       return OneSignalPrefs.getLong(
-               OneSignalPrefs.PREFS_ONESIGNAL,
-               OneSignalPrefs.PREFS_OS_LAST_LOCATION_TIME,
-               TIME_BACKGROUND_SEC * -1_000
+        OneSignalPrefs.PREFS_ONESIGNAL,
+        OneSignalPrefs.PREFS_OS_LAST_LOCATION_TIME,
+        TIME_BACKGROUND_SEC * -1_000
       );
    }
-
+   
    private static boolean hasLocationPermission(Context context) {
       return ContextCompat.checkSelfPermission(context, "android.permission.ACCESS_FINE_LOCATION") == PackageManager.PERMISSION_GRANTED
-          || ContextCompat.checkSelfPermission(context, "android.permission.ACCESS_COARSE_LOCATION") == PackageManager.PERMISSION_GRANTED;
+             || ContextCompat.checkSelfPermission(context, "android.permission.ACCESS_COARSE_LOCATION") == PackageManager.PERMISSION_GRANTED;
    }
-
+   
    static void addPromptHandlerIfAvailable(LocationHandler handler) {
       if (handler instanceof LocationPromptCompletionHandler) {
          synchronized (promptHandlers) {
@@ -134,23 +133,23 @@ class LocationGMS {
          }
       }
    }
-
-   static void sendAndClearPromptHandlers(boolean promptLocation, boolean accepted) {
+   
+   static void sendAndClearPromptHandlers(boolean promptLocation, OneSignal.PromptActionResult result) {
       if (!promptLocation) {
          OneSignal.onesignalLog(OneSignal.LOG_LEVEL.DEBUG, "LocationGMS sendAndClearPromptHandlers from non prompt flow");
          return;
       }
-
+      
       synchronized (promptHandlers) {
          OneSignal.onesignalLog(OneSignal.LOG_LEVEL.DEBUG, "LocationGMS calling prompt handlers");
          for (LocationPromptCompletionHandler promptHandler : promptHandlers) {
-            promptHandler.onAnswered(accepted);
+            promptHandler.onAnswered(result);
          }
          // We only call the prompt handlers once
          promptHandlers.clear();
       }
    }
-
+   
    /**
     * This method handle location and permission location flows and border cases.
     * For each flow we need to trigger location prompts listener,
@@ -168,32 +167,34 @@ class LocationGMS {
     *
     *  For all cases we are calling prompt listeners.
     */
-   static void getLocation(Context context, boolean promptLocation, LocationHandler handler) {
+   static void getLocation(Context context, boolean promptLocation, boolean fallbackToSettings, LocationHandler handler) {
       addPromptHandlerIfAvailable(handler);
       classContext = context;
       locationHandlers.put(handler.getType(), handler);
-
+      
       if (!OneSignal.shareLocation) {
-         sendAndClearPromptHandlers(promptLocation, false);
+         sendAndClearPromptHandlers(promptLocation, OneSignal.PromptActionResult.ERROR);
          fireFailedComplete();
          return;
       }
-
+      
       int locationCoarsePermission = PackageManager.PERMISSION_DENIED;
-
+      
       int locationFinePermission = ContextCompat.checkSelfPermission(context, "android.permission.ACCESS_FINE_LOCATION");
       if (locationFinePermission == PackageManager.PERMISSION_DENIED) {
          locationCoarsePermission = ContextCompat.checkSelfPermission(context, "android.permission.ACCESS_COARSE_LOCATION");
          locationCoarse = true;
       }
-
+      
       if (android.os.Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
          if (locationFinePermission != PackageManager.PERMISSION_GRANTED && locationCoarsePermission != PackageManager.PERMISSION_GRANTED) {
-            sendAndClearPromptHandlers(promptLocation,false);
-            handler.complete(null);
+            // Permission missing on manifest
+            sendAndClearPromptHandlers(promptLocation, OneSignal.PromptActionResult.LOCATION_PERMISSIONS_MISSING_MANIFEST);
+            
+            handler.onComplete(null);
             return;
          }
-         sendAndClearPromptHandlers(promptLocation, true);
+         sendAndClearPromptHandlers(promptLocation, OneSignal.PromptActionResult.PERMISSION_GRANTED);
          startGetLocation();
       }
       else { // Android 6.0+
@@ -201,15 +202,22 @@ class LocationGMS {
             try {
                PackageInfo packageInfo = context.getPackageManager().getPackageInfo(context.getPackageName(), PackageManager.GET_PERMISSIONS);
                List<String> permissionList = Arrays.asList(packageInfo.requestedPermissions);
+               OneSignal.PromptActionResult result = OneSignal.PromptActionResult.PERMISSION_DENIED;
                if (permissionList.contains("android.permission.ACCESS_FINE_LOCATION"))
+                  // ACCESS_FINE_LOCATION permission defined on Manifest, prompt for permission
+                  // If permission already given prompt will return positive, otherwise will prompt again or show settings
                   requestPermission = "android.permission.ACCESS_FINE_LOCATION";
                else if (permissionList.contains("android.permission.ACCESS_COARSE_LOCATION")) {
-                  if (locationCoarsePermission != PackageManager.PERMISSION_GRANTED)
+                  if (locationCoarsePermission != PackageManager.PERMISSION_GRANTED) {
+                     // ACCESS_COARSE_LOCATION permission defined on Manifest, prompt for permission
+                     // If permission already given prompt will return positive, otherwise will prompt again or show settings
                      requestPermission = "android.permission.ACCESS_COARSE_LOCATION";
+                  }
                } else {
                   OneSignal.onesignalLog(OneSignal.LOG_LEVEL.INFO, "Location permissions not added on AndroidManifest file");
+                  result = OneSignal.PromptActionResult.LOCATION_PERMISSIONS_MISSING_MANIFEST;
                }
-
+               
                // We handle the following cases:
                //  1 - If needed and available then prompt for permissions
                //       - Request permission can be ACCESS_COARSE_LOCATION or ACCESS_FINE_LOCATION
@@ -218,49 +226,49 @@ class LocationGMS {
                //
                // For each case, we call the prompt handlers
                if (requestPermission != null && promptLocation) {
-                  PermissionsActivity.startPrompt();
+                  PermissionsActivity.startPrompt(fallbackToSettings);
                } else if (locationCoarsePermission == PackageManager.PERMISSION_GRANTED) {
-                  sendAndClearPromptHandlers(promptLocation, true);
+                  sendAndClearPromptHandlers(promptLocation, OneSignal.PromptActionResult.PERMISSION_GRANTED);
                   startGetLocation();
                } else {
-                  sendAndClearPromptHandlers(promptLocation, false);
+                  sendAndClearPromptHandlers(promptLocation, result);
                   fireFailedComplete();
                }
             } catch (PackageManager.NameNotFoundException e) {
-                  sendAndClearPromptHandlers(promptLocation, false);
+               sendAndClearPromptHandlers(promptLocation, OneSignal.PromptActionResult.ERROR);
                e.printStackTrace();
             }
          }
          else {
-            sendAndClearPromptHandlers(promptLocation, true);
+            sendAndClearPromptHandlers(promptLocation, OneSignal.PromptActionResult.PERMISSION_GRANTED);
             startGetLocation();
          }
       }
    }
-
+   
    // Started from this class or PermissionActivity
    static void startGetLocation() {
       // Prevents overlapping requests
       if (fallbackFailThread != null)
          return;
-
+      
       try {
          synchronized (syncLock) {
             startFallBackThread();
-
+            
             if (locationHandlerThread == null)
                locationHandlerThread = new LocationHandlerThread();
-
+            
             if (mGoogleApiClient == null || mLastLocation == null) {
                GoogleApiClientListener googleApiClientListener = new GoogleApiClientListener();
                GoogleApiClient googleApiClient = new GoogleApiClient.Builder(classContext)
-                       .addApi(LocationServices.API)
-                       .addConnectionCallbacks(googleApiClientListener)
-                       .addOnConnectionFailedListener(googleApiClientListener)
-                       .setHandler(locationHandlerThread.mHandler)
-                       .build();
+                 .addApi(LocationServices.API)
+                 .addConnectionCallbacks(googleApiClientListener)
+                 .addOnConnectionFailedListener(googleApiClientListener)
+                 .setHandler(locationHandlerThread.mHandler)
+                 .build();
                mGoogleApiClient = new GoogleApiClientCompatProxy(googleApiClient);
-
+               
                mGoogleApiClient.connect();
             }
             else if (mLastLocation != null)
@@ -271,11 +279,11 @@ class LocationGMS {
          fireFailedComplete();
       }
    }
-
+   
    private static int getApiFallbackWait() {
       return 30_000;
    }
-
+   
    private static void startFallBackThread() {
       fallbackFailThread = new Thread(new Runnable() {
          public void run() {
@@ -291,10 +299,10 @@ class LocationGMS {
       }, "OS_GMS_LOCATION_FALLBACK");
       fallbackFailThread.start();
    }
-
+   
    static void fireFailedComplete() {
       PermissionsActivity.answered = false;
-
+      
       synchronized (syncLock) {
          if (mGoogleApiClient != null)
             mGoogleApiClient.disconnect();
@@ -302,7 +310,7 @@ class LocationGMS {
       }
       fireComplete(null);
    }
-
+   
    private static void fireComplete(LocationPoint point) {
       // create local copies of fields in thread-safe way
       HashMap<PermissionType, LocationHandler> _locationHandlers = new HashMap<>();
@@ -312,13 +320,13 @@ class LocationGMS {
          LocationGMS.locationHandlers.clear();
          _fallbackFailThread = LocationGMS.fallbackFailThread;
       }
-
+      
       // execute race-independent logic
       for(PermissionType type : _locationHandlers.keySet())
-         _locationHandlers.get(type).complete(point);
+         _locationHandlers.get(type).onComplete(point);
       if (_fallbackFailThread != null && !Thread.currentThread().equals(_fallbackFailThread))
-          _fallbackFailThread.interrupt();
-
+         _fallbackFailThread.interrupt();
+      
       // clear fallbackFailThread in thread-safe way
       if (_fallbackFailThread == LocationGMS.fallbackFailThread) {
          synchronized (LocationGMS.class) {
@@ -329,15 +337,15 @@ class LocationGMS {
       // Save last time so even if a failure we trigger the same schedule update
       setLastLocationTime(System.currentTimeMillis());
    }
-
+   
    private static void fireCompleteForLocation(Location location) {
       LocationPoint point = new LocationPoint();
-
+      
       point.accuracy = location.getAccuracy();
       point.bg = !OneSignal.isForeground();
       point.type = locationCoarse ? 0 : 1;
       point.timeStamp = location.getTime();
-
+      
       // Coarse always gives out 14 digits and has an accuracy 2000.
       // Always rounding to 7 as this is what fine returns.
       if (locationCoarse) {
@@ -348,85 +356,85 @@ class LocationGMS {
          point.lat = location.getLatitude();
          point.log = location.getLongitude();
       }
-
+      
       fireComplete(point);
       scheduleUpdate(classContext);
    }
-
+   
    static void onFocusChange() {
       synchronized (syncLock) {
          if (mGoogleApiClient == null || !mGoogleApiClient.realInstance().isConnected())
             return;
-
+         
          GoogleApiClient googleApiClient = mGoogleApiClient.realInstance();
-
+         
          if (locationUpdateListener != null)
             LocationServices.FusedLocationApi.removeLocationUpdates(googleApiClient, locationUpdateListener);
-
+         
          locationUpdateListener = new LocationUpdateListener(googleApiClient);
       }
    }
-
+   
    static LocationUpdateListener locationUpdateListener;
-
+   
    private static class GoogleApiClientListener implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
       @Override
       public void onConnected(Bundle bundle) {
          synchronized (syncLock) {
             PermissionsActivity.answered = false;
-
+            
             if (mGoogleApiClient == null || mGoogleApiClient.realInstance() == null)
                return;
-
+            
             if (mLastLocation == null) {
                mLastLocation = FusedLocationApiWrapper.getLastLocation(mGoogleApiClient.realInstance());
                if (mLastLocation != null)
                   fireCompleteForLocation(mLastLocation);
             }
-
+            
             locationUpdateListener = new LocationUpdateListener(mGoogleApiClient.realInstance());
          }
       }
-
+      
       @Override
       public void onConnectionSuspended(int i) {
          fireFailedComplete();
       }
-
+      
       @Override
       public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
          fireFailedComplete();
       }
    }
-
+   
    static class LocationUpdateListener implements LocationListener {
-
+      
       private GoogleApiClient mGoogleApiClient;
-
+      
       // this initializer method is already synchronized from LocationGMS with respect to the GoogleApiClient lock
       LocationUpdateListener(GoogleApiClient googleApiClient) {
          mGoogleApiClient = googleApiClient;
-
+         
          long updateInterval = BACKGROUND_UPDATE_TIME_MS;
          if (OneSignal.isForeground())
             updateInterval =  FOREGROUND_UPDATE_TIME_MS;
-
+         
          LocationRequest locationRequest = LocationRequest.create()
-            .setFastestInterval(updateInterval)
-            .setInterval(updateInterval)
-            .setMaxWaitTime((long)(updateInterval * 1.5))
-            .setPriority(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY);
-
+           .setFastestInterval(updateInterval)
+           .setInterval(updateInterval)
+           .setMaxWaitTime((long)(updateInterval * 1.5))
+           .setPriority(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY);
+         
          FusedLocationApiWrapper.requestLocationUpdates(mGoogleApiClient, locationRequest, this);
       }
-
+      
       @Override
       public void onLocationChanged(Location location) {
          mLastLocation = location;
          OneSignal.Log(OneSignal.LOG_LEVEL.INFO, "Location Change Detected");
       }
    }
-
+   
    static class FusedLocationApiWrapper {
       @SuppressWarnings("MissingPermission")
       static void requestLocationUpdates(GoogleApiClient googleApiClient, LocationRequest locationRequest, LocationListener locationListener) {
@@ -439,7 +447,7 @@ class LocationGMS {
             OneSignal.Log(OneSignal.LOG_LEVEL.WARN, "FusedLocationApi.requestLocationUpdates failed!", t);
          }
       }
-
+      
       @SuppressWarnings("MissingPermission")
       static Location getLastLocation(GoogleApiClient googleApiClient) {
          synchronized(LocationGMS.syncLock) {
@@ -449,10 +457,10 @@ class LocationGMS {
          return null;
       }
    }
-
+   
    private static class LocationHandlerThread extends HandlerThread {
       Handler mHandler;
-
+      
       LocationHandlerThread() {
          super("OSH_LocationHandlerThread");
          start();

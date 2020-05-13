@@ -3421,7 +3421,7 @@ public class MainOneSignalClassRunner {
       threadAndTaskWait();
 
       assertTrue(ShadowCustomTabsClient.bindCustomTabsServiceCalled);
-      assertTrue(ShadowCustomTabsSession.lastURL.toString().contains("https://onesignal.com/android_frame.html?app_id=b2f7f966-d8cc-11e4-bed1-df8f05be55ba&user_id=a2f7f967-e8cc-11e4-bed1-118f05be4511&ad_id=11111111-2222-3333-4444-555555555555&cbs_id="));
+      assertTrue(ShadowCustomTabsSession.lastURL.toString().contains("https://signalone.app/android_frame.html?app_id=b2f7f966-d8cc-11e4-bed1-df8f05be55ba&user_id=a2f7f967-e8cc-11e4-bed1-118f05be4511&ad_id=11111111-2222-3333-4444-555555555555&cbs_id="));
    }
 
    @Test

@@ -262,7 +262,7 @@ public class InAppMessagingUnitTests {
 
         assertEquals(action.getClickId(), InAppMessagingHelpers.IAM_CLICK_ID);
         assertEquals(action.clickName, "click_name");
-        assertEquals(action.clickUrl, "https://www.onesignal.com");
+        assertEquals(action.clickUrl, "https://www.signalone.app");
         assertTrue(action.closes());
         assertEquals(action.urlTarget, OSInAppMessageAction.OSInAppMessageActionUrlType.IN_APP_WEBVIEW);
     }
