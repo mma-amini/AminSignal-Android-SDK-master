@@ -1,7 +1,7 @@
 /**
  * Modified MIT License
  *
- * Copyright 2019 OneSignal
+ * Copyright 2018 OneSignal
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,33 +29,16 @@ package com.onesignal;
 
 import org.robolectric.annotation.Implements;
 
-import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.URL;
+@Implements(GMSLocationController.class)
+public class ShadowGMSLocationController {
 
-@Implements(OneSignalRestClient.class)
-public class ShadowOneSignalRestClientWithMockConnection {
+   public static Integer apiFallbackTime = GMSLocationController.API_FALLBACK_TIME;
 
-   public static MockHttpURLConnection lastConnection;
-   public static MockHttpURLConnection.MockResponse mockResponse;
-
-   public static void resetStatics() {
-      mockResponse = new MockHttpURLConnection.MockResponse() {{
-         responseBody = "{}";
-         status = 200;
-      }};
-      lastConnection = null;
-   }
-   
-   public static int getThreadTimeout(int timeout) {
-      return 1;
+   public static void reset() {
+      apiFallbackTime = GMSLocationController.API_FALLBACK_TIME;
    }
 
-   public static HttpURLConnection newHttpURLConnection(String url) throws IOException {
-      lastConnection = new MockHttpURLConnection(
-         new URL("https://onesignal.com/api/v1/" + url),
-         mockResponse
-      );
-      return lastConnection;
+   public static int getApiFallbackWait() {
+      return apiFallbackTime;
    }
 }
