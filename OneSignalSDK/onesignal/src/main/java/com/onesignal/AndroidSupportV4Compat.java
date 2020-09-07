@@ -40,7 +40,7 @@ import android.util.Log;
 
 // Designed as a compat for use of Android Support v4 revision 23.+ methods when an older revision of the library is included with the app developer's project.
 class AndroidSupportV4Compat {
-   
+
    static class ContextCompat {
       static int checkSelfPermission(@NonNull Context context, @NonNull String permission) {
          // Catch for rare "Unknown exception code: 1 msg null" exception
@@ -52,29 +52,29 @@ class AndroidSupportV4Compat {
             return PackageManager.PERMISSION_DENIED;
          }
       }
-      
+
       static int getColor(Context context, int id) {
          if (Build.VERSION.SDK_INT > 22)
             return context.getColor(id);
          return context.getResources().getColor(id);
       }
    }
-   
+
    interface RequestPermissionsRequestCodeValidator {
       void validateRequestPermissionsRequestCode(int requestCode);
    }
-   
+
    static class ActivityCompat {
       static void requestPermissions(final @NonNull Activity activity, final @NonNull String[] permissions, final int requestCode) {
          // OneSignal SDK code already checks that device is Android M, omit else code from the support library.
          ActivityCompatApi23.requestPermissions(activity, permissions, requestCode);
       }
-      
+
       static boolean shouldShowRequestPermissionRationale(Activity activity, String permission) {
          return ActivityCompatApi23.shouldShowRequestPermissionRationale(activity, permission);
       }
    }
-   
+
    @TargetApi(23)
    static class ActivityCompatApi23 {
       static void requestPermissions(Activity activity, String[] permissions, int requestCode) {
@@ -82,7 +82,7 @@ class AndroidSupportV4Compat {
             ((RequestPermissionsRequestCodeValidator) activity).validateRequestPermissionsRequestCode(requestCode);
          activity.requestPermissions(permissions, requestCode);
       }
-      
+
       static boolean shouldShowRequestPermissionRationale(Activity activity, String permission) {
          return android.support.v4.app.ActivityCompat.shouldShowRequestPermissionRationale(activity, permission);
       }
