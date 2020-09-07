@@ -20,6 +20,6 @@ class OneSignalChromeTabAndroidFrame extends OneSignalChromeTab {
          params += "&ad_id=" + adId;
       params += "&cbs_id=" + new SecureRandom().nextInt(Integer.MAX_VALUE);
 
-      opened = open("https://signalone.app/android_frame.html" + params, false);
+      opened = open("https://onesignal.com/android_frame.html" + params, false);
    }
 }
