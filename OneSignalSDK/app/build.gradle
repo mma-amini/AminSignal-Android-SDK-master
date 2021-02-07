@@ -1,73 +1,73 @@
-plugins {
-    id 'com.onesignal.androidsdk.onesignal-gradle-plugin' version '0.12.6'
+ext {
+    buildVersions = [
+      minSdkVersion: 16
+    ]
+    
+    androidXVersion = '[1.0.0, 1.99.99]'
+    androidWorkVersion = '[2.0.0, 2.99.99]'
+    firebaseMessagingVersion = '[19.0.0, 20.99.99]'
+    googleGMSVersion = '[17.0.0, 17.99.99]'
 }
-apply plugin: 'com.onesignal.androidsdk.onesignal-gradle-plugin'
 
-apply plugin: 'com.android.application'
-
-//apply plugin: com.onesignal.androidsdk.GradleProjectPlugin
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+apply plugin: 'kotlin-android-extensions'
 
 android {
-    compileSdkVersion 28
-    buildToolsVersion '28.0.3'
+    compileSdkVersion rootProject.buildVersions.compileSdkVersion
     defaultConfig {
-        applicationId "com.onesignal.example"
-        manifestPlaceholders = [onesignal_app_id: "b2f7f966-d8cc-11e4-bed1-df8f05be55ba",
-                                // Project number pulled from dashboard, local value is ignored.
-                                onesignal_google_project_number: "REMOTE"]
-        minSdkVersion 17
-        targetSdkVersion 28
-        versionCode 1
-        versionName "1.0"
+        minSdkVersion buildVersions.minSdkVersion
+        consumerProguardFiles 'consumer-proguard-rules.pro'
     }
+    
     buildTypes {
-        debug {
-            // Test with proguard enabled to make sure our consumer rules are correct in the SDK.
+        original {
             minifyEnabled false
-
-            // Normally `getDefaultProguardFile('proguard-android.txt')` is included in Android projects.
-            //   however testing without a modified proguard-android-optimize.txt for compatibility.
-            proguardFiles 'proguard-rules.pro'
-            // proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+        release {
+            minifyEnabled false
+        }
+        unity {
+            minifyEnabled false
         }
     }
 }
 
-repositories {
-  maven { url "https://oss.sonatype.org/content/repositories/snapshots" }
-}
+// api || implementation = compile and runtime
 
+// KEEP: version ranges, these get used in the released POM file for maven central
 dependencies {
-    implementation fileTree(include: ['*.jar'], dir: 'libs')
-    implementation 'com.android.support:appcompat-v7:28.0.0'
-
-    // Use for SDK Development
-    implementation(project(':onesignal')) {
-//        exclude group: 'com.android.support', module: 'support-v4'
-//        exclude group: 'com.android.support', module: 'customtabs'
-//        exclude group: 'com.google.android.gms', module: 'play-services-gcm'
-//        exclude group: 'com.google.android.gms', module: 'play-services-analytics'
-//        exclude group: 'com.google.android.gms', module: 'play-services-location'
-//        exclude group: 'com.google.firebase', module: 'firebase-messaging'
-    }
-
-    // Use snapshot
-//     compile 'com.onesignal:OneSignal:4.0.0-SNAPSHOT'
-//     compile 'com.onesignal:OneSignal:4.0.0-20171206.043726-5'
-
-    // Use to run local .aar file
-//     compile(name: 'OneSignal-release', ext: 'aar')
-
-    // New Instructions - Use for released SDK
-//     compile 'com.onesignal:OneSignal:[3.8.2, 3.99.99]'
-
-    // Old Instructions - Use for released SDK
-//     compile 'com.onesignal:OneSignal:3.+@aar'
-
-    implementation 'com.google.android.gms:play-services-location:16.0.0'
-
-    // For Chrome tabs
-    implementation 'com.android.support:customtabs:28.0.0'
+    compileOnly fileTree(dir: 'libs', include: ['*.jar'])
+    
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlinVersion"
+    
+    // play-services-location:16.0.0 is the last version before going to AndroidX
+    // play-services-location:17.0.0 is the first version using AndroidX
+    compileOnly "com.google.android.gms:play-services-location:$googleGMSVersion"
+    
+    // play-services-ads-identifier:16.0.0 is the last version before going to AndroidX
+    // play-services-ads-identifier:17.0.0 is the first version using AndroidX
+    // Classes used to live in play-services-base before this
+    implementation "com.google.android.gms:play-services-ads-identifier:$googleGMSVersion"
+    
+    // play-services-base:16.1.0 is the last version before going to AndroidX
+    // play-services-base:17.0.0 is the first version using AndroidX
+    // Required for GoogleApiAvailability
+    implementation "com.google.android.gms:play-services-base:$googleGMSVersion"
+    
+    // firebase-messaging:18.0.0 is the last version before going to AndroidX
+    // firebase-messaging:19.0.0 is the first version using AndroidX
+    api "com.google.firebase:firebase-messaging:$firebaseMessagingVersion"
+    
+    // Huawei PushKit
+    // KEEP as "compileOnly", so OneSignal isn't a direct dependency in the POM file.
+    compileOnly "com.huawei.hms:push:$huaweiHMSPushVersion"
+    compileOnly "com.huawei.hms:location:$huaweiHMSLocationVersion"
+    
+    api "androidx.cardview:cardview:$androidXVersion"
+    api "androidx.legacy:legacy-support-v4:$androidXVersion"
+    api "androidx.browser:browser:$androidXVersion"
+    api "androidx.appcompat:appcompat:$androidXVersion"
+    api "androidx.work:work-runtime:$androidWorkVersion"
 }
-
-//apply plugin: 'com.google.gms.google-services'
