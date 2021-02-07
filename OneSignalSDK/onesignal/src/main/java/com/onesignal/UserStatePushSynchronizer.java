@@ -1,6 +1,6 @@
 package com.onesignal;
 
-import android.support.annotation.Nullable;
+import androidx.annotation.Nullable;
 
 import com.onesignal.OneSignalStateSynchronizer.UserStateSynchronizerType;
 
@@ -50,13 +50,13 @@ class UserStatePushSynchronizer extends UserStateSynchronizer {
                     try {
                         JSONObject lastGetTagsResponse = new JSONObject(responseStr);
                         if (lastGetTagsResponse.has("tags")) {
-                            synchronized(syncLock) {
-                                JSONObject dependDiff = generateJsonDiff(currentUserState.syncValues.optJSONObject("tags"),
-                                        getToSyncUserState().syncValues.optJSONObject("tags"),
+                            synchronized(LOCK) {
+                                JSONObject dependDiff = generateJsonDiff(getCurrentUserState().getSyncValues().optJSONObject("tags"),
+                                        getToSyncUserState().getSyncValues().optJSONObject("tags"),
                                         null, null);
 
-                                currentUserState.syncValues.put("tags", lastGetTagsResponse.optJSONObject("tags"));
-                                currentUserState.persistState();
+                                getCurrentUserState().putOnSyncValues("tags", lastGetTagsResponse.optJSONObject("tags"));
+                                getCurrentUserState().persistState();
 
                                 // Allow server side tags to overwrite local tags expect for any pending changes
                                 //  that haven't been successfully posted.
@@ -71,15 +71,15 @@ class UserStatePushSynchronizer extends UserStateSynchronizer {
             }, OneSignalRestClient.CACHE_KEY_GET_TAGS);
         }
 
-        synchronized(syncLock) {
-            return new GetTagsResult(serverSuccess, JSONUtils.getJSONObjectWithoutBlankValues(toSyncUserState.syncValues, "tags"));
+        synchronized(LOCK) {
+            return new GetTagsResult(serverSuccess, JSONUtils.getJSONObjectWithoutBlankValues(getToSyncUserState().getSyncValues(), "tags"));
         }
     }
 
     @Override
     @Nullable String getExternalId(boolean fromServer) {
-        synchronized(syncLock) {
-            return toSyncUserState.syncValues.optString("external_user_id", null);
+        synchronized(LOCK) {
+            return getToSyncUserState().getSyncValues().optString("external_user_id", null);
         }
     }
 
@@ -96,8 +96,8 @@ class UserStatePushSynchronizer extends UserStateSynchronizer {
             if (pushState.has("device_type"))
                 syncUpdate.put("device_type", pushState.optInt("device_type"));
             syncUpdate.putOpt("parent_player_id", pushState.optString("parent_player_id", null));
-            JSONObject toSync = getUserStateForModification().syncValues;
-            generateJsonDiff(toSync, syncUpdate, toSync, null);
+            UserState userState = getUserStateForModification();
+            userState.generateJsonDiffFromIntoSyncValued(syncUpdate, null);
         } catch(JSONException t) {
             t.printStackTrace();
         }
@@ -108,8 +108,9 @@ class UserStatePushSynchronizer extends UserStateSynchronizer {
                 dependUpdate.put("subscribableStatus", pushState.optInt("subscribableStatus"));
             if (pushState.has("androidPermission"))
                 dependUpdate.put("androidPermission", pushState.optBoolean("androidPermission"));
-            JSONObject dependValues = getUserStateForModification().dependValues;
-            generateJsonDiff(dependValues, dependUpdate, dependValues, null);
+
+            UserState userState = getUserStateForModification();
+            userState.generateJsonDiffFromIntoDependValues(dependUpdate, null);
         } catch(JSONException t) {
             t.printStackTrace();
         }
@@ -119,10 +120,8 @@ class UserStatePushSynchronizer extends UserStateSynchronizer {
         try {
             UserState userState = getUserStateForModification();
 
-            userState.dependValues.put("email_auth_hash", emailAuthHash);
-
-            JSONObject syncValues = userState.syncValues;
-            generateJsonDiff(syncValues, new JSONObject().put("email", email), syncValues, null);
+            userState.putOnDependValues("email_auth_hash", emailAuthHash);
+            userState.generateJsonDiffFromIntoSyncValued(new JSONObject().put("email", email), null);
         }
         catch (JSONException e) {
             e.printStackTrace();
@@ -132,7 +131,7 @@ class UserStatePushSynchronizer extends UserStateSynchronizer {
     @Override
     void setSubscription(boolean enable) {
         try {
-            getUserStateForModification().dependValues.put("userSubscribePref", enable);
+            getUserStateForModification().putOnDependValues("userSubscribePref", enable);
         } catch (JSONException e) {
             e.printStackTrace();
         }
@@ -140,13 +139,13 @@ class UserStatePushSynchronizer extends UserStateSynchronizer {
 
     @Override
     public boolean getUserSubscribePreference() {
-        return getToSyncUserState().dependValues.optBoolean("userSubscribePref", true);
+        return getToSyncUserState().getDependValues().optBoolean("userSubscribePref", true);
     }
 
     @Override
     public void setPermission(boolean enable) {
         try {
-            getUserStateForModification().dependValues.put("androidPermission", enable);
+            getUserStateForModification().putOnDependValues("androidPermission", enable);
         } catch (JSONException e) {
             e.printStackTrace();
         }
@@ -168,7 +167,7 @@ class UserStatePushSynchronizer extends UserStateSynchronizer {
     @Override
     void logoutEmail() {
         try {
-            getUserStateForModification().dependValues.put("logoutEmail", true);
+            getUserStateForModification().putOnDependValues("logoutEmail", true);
         } catch (JSONException e) {
             e.printStackTrace();
         }
@@ -184,7 +183,5 @@ class UserStatePushSynchronizer extends UserStateSynchronizer {
     protected void onSuccessfulSync(JSONObject jsonFields) {
         if (jsonFields.has("email"))
             OneSignal.fireEmailUpdateSuccess();
-        if (jsonFields.has("identifier"))
-            OneSignal.fireIdsAvailableCallback();
     }
 }

@@ -2,11 +2,11 @@ package com.onesignal;
 
 import android.os.Handler;
 import android.os.HandlerThread;
-import android.support.annotation.Nullable;
+import androidx.annotation.Nullable;
 
-import com.onesignal.OneSignalStateSynchronizer.UserStateSynchronizerType;
 import com.onesignal.OneSignal.ChangeTagsUpdateHandler;
 import com.onesignal.OneSignal.SendTagsError;
+import com.onesignal.OneSignalStateSynchronizer.UserStateSynchronizerType;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -22,7 +22,11 @@ import static com.onesignal.OSInAppMessageController.IN_APP_MESSAGES_JSON_KEY;
 
 abstract class UserStateSynchronizer {
 
+    // Object to synchronize on to prevent concurrent modifications on syncValues and dependValues
+    protected final Object LOCK = new Object();
+
     private UserStateSynchronizerType channel;
+    private boolean canMakeUpdates;
 
     UserStateSynchronizer(UserStateSynchronizerType channel) {
         this.channel = channel;
@@ -46,15 +50,10 @@ abstract class UserStateSynchronizer {
         }
     }
 
-    private boolean canMakeUpdates;
-
-    // Object to synchronize on to prevent concurrent modifications on syncValues and dependValues
-    protected final Object syncLock = new Object() {};
-
     abstract boolean getSubscribed();
 
     String getRegistrationId() {
-        return getToSyncUserState().syncValues.optString("identifier", null);
+        return getToSyncUserState().getSyncValues().optString("identifier", null);
     }
 
     abstract GetTagsResult getTags(boolean fromServer);
@@ -77,7 +76,7 @@ abstract class UserStateSynchronizer {
 
         int mType;
 
-        Handler mHandler = null;
+        Handler mHandler;
 
         static final int MAX_RETRIES = 3, NETWORK_CALL_DELAY_TO_BUFFER_MS = 5_000;
         int currentRetry;
@@ -106,7 +105,8 @@ abstract class UserStateSynchronizer {
                     return new Runnable() {
                         @Override
                         public void run() {
-                            if (!runningSyncUserState.get())
+                            boolean syncUserState = !runningSyncUserState.get();
+                            if (syncUserState)
                                 syncUserState(false);
                         }
                     };
@@ -144,38 +144,43 @@ abstract class UserStateSynchronizer {
     // currentUserState - Current known state of the user on OneSignal's server.
     // toSyncUserState  - Pending state that will be synced to the OneSignal server.
     //                    diff will be generated between currentUserState when a sync call is made to the server.
-    protected UserState currentUserState, toSyncUserState;
+    private UserState currentUserState, toSyncUserState;
 
     protected JSONObject generateJsonDiff(JSONObject cur, JSONObject changedTo, JSONObject baseOutput, Set<String> includeFields) {
-        synchronized (syncLock) {
+        synchronized (LOCK) {
             return JSONUtils.generateJsonDiff(cur, changedTo, baseOutput, includeFields);
         }
     }
 
     protected UserState getCurrentUserState() {
-        synchronized (syncLock) {
-            if (currentUserState == null)
-                currentUserState = newUserState("CURRENT_STATE", true);
+        if (currentUserState == null) {
+            synchronized (LOCK) {
+                if (currentUserState == null)
+                    currentUserState = newUserState("CURRENT_STATE", true);
+            }
         }
 
         return currentUserState;
     }
 
     protected UserState getToSyncUserState() {
-        synchronized (syncLock) {
-            if (toSyncUserState == null)
-                toSyncUserState = newUserState("TOSYNC_STATE", true);
+        if (toSyncUserState == null) {
+            synchronized (LOCK) {
+                if (toSyncUserState == null)
+                    toSyncUserState = newUserState("TOSYNC_STATE", true);
+            }
         }
 
         return toSyncUserState;
     }
 
     void initUserState() {
-        synchronized (syncLock) {
-            if (currentUserState == null)
-                currentUserState = newUserState("CURRENT_STATE", true);
+        if (currentUserState == null) {
+            synchronized (LOCK) {
+                if (currentUserState == null)
+                    currentUserState = newUserState("CURRENT_STATE", true);
+            }
         }
-
         getToSyncUserState();
     }
 
@@ -188,7 +193,7 @@ abstract class UserStateSynchronizer {
 
     boolean persist() {
         if (toSyncUserState != null) {
-            synchronized (syncLock) {
+            synchronized (LOCK) {
                 boolean unSynced = currentUserState.generateJsonDiff(toSyncUserState, isSessionCall()) != null;
                 toSyncUserState.persistState();
                 return unSynced;
@@ -201,12 +206,12 @@ abstract class UserStateSynchronizer {
     protected abstract String getId();
 
     private boolean isSessionCall() {
-        boolean toSyncSession = getToSyncUserState().dependValues.optBoolean("session");
+        boolean toSyncSession = getToSyncUserState().getDependValues().optBoolean("session");
         return (toSyncSession || getId() == null) && !waitingForSessionResponse;
     }
 
     private boolean syncEmailLogout() {
-        return getToSyncUserState().dependValues.optBoolean("logoutEmail", false);
+        return getToSyncUserState().getDependValues().optBoolean("logoutEmail", false);
     }
 
     void syncUserState(boolean fromSyncService) {
@@ -228,10 +233,11 @@ abstract class UserStateSynchronizer {
 
         final boolean isSessionCall = !fromSyncService && isSessionCall();
         JSONObject jsonBody, dependDiff;
-        synchronized (syncLock) {
+        synchronized (LOCK) {
             jsonBody = currentUserState.generateJsonDiff(getToSyncUserState(), isSessionCall);
-            dependDiff = generateJsonDiff(currentUserState.dependValues, getToSyncUserState().dependValues, null, null);
-
+            UserState toSyncState = getToSyncUserState();
+            dependDiff = currentUserState.generateJsonDiffFromDependValues(toSyncState, null);;
+            OneSignal.onesignalLog(OneSignal.LOG_LEVEL.DEBUG, "UserStateSynchronizer internalSyncUserState from session call: "+ isSessionCall + " jsonBody: " + jsonBody);
             // Updates did not result in a server side change, skipping network call
             if (jsonBody == null) {
                 currentUserState.persistStateAfterSync(dependDiff, null);
@@ -252,11 +258,11 @@ abstract class UserStateSynchronizer {
         String urlStr = "players/" + userId + "/email_logout";
         JSONObject jsonBody = new JSONObject();
         try {
-            JSONObject dependValues = currentUserState.dependValues;
+            ImmutableJSONObject dependValues = currentUserState.getDependValues();
             if (dependValues.has("email_auth_hash"))
                 jsonBody.put("email_auth_hash", dependValues.optString("email_auth_hash"));
 
-            JSONObject syncValues = currentUserState.syncValues;
+            ImmutableJSONObject syncValues = currentUserState.getSyncValues();
             if (syncValues.has("parent_player_id"))
                 jsonBody.put("parent_player_id", syncValues.optString("parent_player_id"));
 
@@ -289,15 +295,16 @@ abstract class UserStateSynchronizer {
     }
 
     private void logoutEmailSyncSuccess() {
-        getToSyncUserState().dependValues.remove("logoutEmail");
-        toSyncUserState.dependValues.remove("email_auth_hash");
-        toSyncUserState.syncValues.remove("parent_player_id");
+        getToSyncUserState().removeFromDependValues("logoutEmail");
+        toSyncUserState.removeFromDependValues("email_auth_hash");
+        toSyncUserState.removeFromSyncValues("parent_player_id");
+        toSyncUserState.removeFromSyncValues("email");
         toSyncUserState.persistState();
 
-        currentUserState.dependValues.remove("email_auth_hash");
-        currentUserState.syncValues.remove("parent_player_id");
-        String emailLoggedOut = currentUserState.syncValues.optString("email");
-        currentUserState.syncValues.remove("email");
+        currentUserState.removeFromDependValues("email_auth_hash");
+        currentUserState.removeFromSyncValues("parent_player_id");
+        String emailLoggedOut = currentUserState.getSyncValues().optString("email");
+        currentUserState.removeFromSyncValues("email");
 
         OneSignalStateSynchronizer.setNewSessionForEmail();
 
@@ -318,7 +325,7 @@ abstract class UserStateSynchronizer {
             void onFailure(int statusCode, String response, Throwable throwable) {
                 OneSignal.Log(OneSignal.LOG_LEVEL.ERROR, "Failed PUT sync request with status code: " + statusCode + " and response: " + response);
 
-                synchronized (syncLock) {
+                synchronized (LOCK) {
                     if (response400WithErrorsContaining(statusCode, response, "No user with this id found"))
                         handlePlayerDeletedFromServer();
                     else
@@ -336,7 +343,7 @@ abstract class UserStateSynchronizer {
 
             @Override
             void onSuccess(String response) {
-                synchronized (syncLock) {
+                synchronized (LOCK) {
                     currentUserState.persistStateAfterSync(dependDiff, jsonBody);
                     onSuccessfulSync(jsonBody);
                 }
@@ -362,7 +369,7 @@ abstract class UserStateSynchronizer {
         OneSignalRestClient.postSync(urlStr, jsonBody, new OneSignalRestClient.ResponseHandler() {
             @Override
             void onFailure(int statusCode, String response, Throwable throwable) {
-                synchronized (syncLock) {
+                synchronized (LOCK) {
                     waitingForSessionResponse = false;
                     OneSignal.Log(OneSignal.LOG_LEVEL.WARN, "Failed last request. statusCode: " + statusCode + "\nresponse: " + response);
 
@@ -375,7 +382,7 @@ abstract class UserStateSynchronizer {
 
             @Override
             void onSuccess(String response) {
-                synchronized (syncLock) {
+                synchronized (LOCK) {
                     waitingForSessionResponse = false;
                     currentUserState.persistStateAfterSync(dependDiff, jsonBody);
 
@@ -391,12 +398,12 @@ abstract class UserStateSynchronizer {
                         else
                             OneSignal.Log(OneSignal.LOG_LEVEL.INFO, "session sent, UserId = " + userId);
 
-                        getUserStateForModification().dependValues.put("session", false);
+                        getUserStateForModification().putOnDependValues("session", false);
                         getUserStateForModification().persistState();
 
                         // List of in app messages to evaluate for the session
                         if (jsonResponse.has(IN_APP_MESSAGES_JSON_KEY))
-                            OSInAppMessageController.getController().receivedInAppMessageJson(jsonResponse.getJSONArray(IN_APP_MESSAGES_JSON_KEY));
+                            OneSignal.getInAppMessageController().receivedInAppMessageJson(jsonResponse.getJSONArray(IN_APP_MESSAGES_JSON_KEY));
 
                         onSuccessfulSync(jsonBody);
                     } catch (JSONException e) {
@@ -427,7 +434,7 @@ abstract class UserStateSynchronizer {
         if (jsonBody != null)
             fireEventsForUpdateFailure(jsonBody);
 
-        if (getToSyncUserState().dependValues.optBoolean("logoutEmail", false))
+        if (getToSyncUserState().getDependValues().optBoolean("logoutEmail", false))
             OneSignal.handleFailedEmailLogout();
     }
 
@@ -471,16 +478,15 @@ abstract class UserStateSynchronizer {
     abstract protected void scheduleSyncToServer();
 
     void updateDeviceInfo(JSONObject deviceInfo) {
-        JSONObject toSync = getUserStateForModification().syncValues;
-        generateJsonDiff(toSync, deviceInfo, toSync, null);
+        getUserStateForModification().generateJsonDiffFromIntoSyncValued(deviceInfo, null);
     }
 
     abstract void updateState(JSONObject state);
 
     void setNewSession() {
         try {
-            synchronized (syncLock) {
-                getUserStateForModification().dependValues.put("session", true);
+            synchronized (LOCK) {
+                getUserStateForModification().putOnDependValues("session", true);
                 getUserStateForModification().persistState();
             }
         } catch (JSONException e) {
@@ -489,25 +495,28 @@ abstract class UserStateSynchronizer {
     }
 
     boolean getSyncAsNewSession() {
-        return getUserStateForModification().dependValues.optBoolean("session");
+        return getUserStateForModification().getDependValues().optBoolean("session");
     }
 
     void sendTags(JSONObject tags, @Nullable ChangeTagsUpdateHandler handler) {
         if (handler != null)
             this.sendTagsHandlers.add(handler);
-        JSONObject userStateTags = getUserStateForModification().syncValues;
-        generateJsonDiff(userStateTags, tags, userStateTags, null);
+        UserState userStateTags = getUserStateForModification();
+        userStateTags.generateJsonDiffFromIntoSyncValued(tags, null);
     }
 
     void syncHashedEmail(JSONObject emailFields) {
-        JSONObject syncValues = getUserStateForModification().syncValues;
-        generateJsonDiff(syncValues, emailFields, syncValues, null);
+        getUserStateForModification().generateJsonDiffFromIntoSyncValued(emailFields, null);
     }
 
-    void setExternalUserId(final String externalId, OneSignal.OSInternalExternalUserIdUpdateCompletionHandler handler) throws JSONException {
+    void setExternalUserId(final String externalId, final String externalIdAuthHash, OneSignal.OSInternalExternalUserIdUpdateCompletionHandler handler) throws JSONException {
         if (handler != null)
             this.externalUserIdUpdateHandlers.add(handler);
-        getUserStateForModification().syncValues.put("external_user_id", externalId);
+
+        UserState userState = getUserStateForModification();
+        userState.putOnSyncValues("external_user_id", externalId);
+        if (externalIdAuthHash != null)
+            userState.putOnSyncValues("external_user_id_auth_hash", externalIdAuthHash);
     }
 
     abstract void setSubscription(boolean enable);
@@ -521,7 +530,7 @@ abstract class UserStateSynchronizer {
     }
 
     void resetCurrentState() {
-        currentUserState.syncValues = new JSONObject();
+        currentUserState.setSyncValues(new JSONObject());
         currentUserState.persistState();
     }
 

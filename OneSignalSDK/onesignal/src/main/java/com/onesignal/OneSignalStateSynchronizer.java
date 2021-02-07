@@ -27,11 +27,12 @@
 
 package com.onesignal;
 
-import android.support.annotation.Nullable;
+import androidx.annotation.Nullable;
+
+import com.onesignal.OneSignal.ChangeTagsUpdateHandler;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import com.onesignal.OneSignal.ChangeTagsUpdateHandler;
 
 import java.util.HashMap;
 
@@ -107,18 +108,6 @@ class OneSignalStateSynchronizer {
          if (handler != null)
             handler.onFailure(new OneSignal.SendTagsError(-1, "Encountered an error attempting to serialize your tags into JSON: " + e.getMessage() + "\n" + e.getStackTrace()));
          e.printStackTrace();
-      }
-   }
-
-   static void syncHashedEmail(String email) {
-      try {
-         JSONObject emailFields = new JSONObject();
-         emailFields.put("em_m", OSUtils.hexDigest(email, "MD5"));
-         emailFields.put("em_s", OSUtils.hexDigest(email, "SHA-1"));
-
-         getPushStateSynchronizer().syncHashedEmail(emailFields);
-      } catch (Throwable t) {
-         t.printStackTrace();
       }
    }
 
@@ -198,7 +187,7 @@ class OneSignalStateSynchronizer {
       getEmailStateSynchronizer().logoutEmail();
    }
 
-   static void setExternalUserId(String externalId, final OneSignal.OSExternalUserIdUpdateCompletionHandler completionHandler) throws JSONException {
+   static void setExternalUserId(String externalId, String externalIdAuthHash, final OneSignal.OSExternalUserIdUpdateCompletionHandler completionHandler) throws JSONException {
       final JSONObject responses = new JSONObject();
       // Create a handler for internal usage, this is where the developers completion handler will be called,
       //  which happens once all handlers for each channel have been processed
@@ -227,17 +216,17 @@ class OneSignalStateSynchronizer {
                @Override
                public void run() {
                   if (completionHandler != null)
-                     completionHandler.onComplete(responses);
+                     completionHandler.onSuccess(responses);
                }
             });
          }
       };
 
-      getPushStateSynchronizer().setExternalUserId(externalId, handler);
+      getPushStateSynchronizer().setExternalUserId(externalId, externalIdAuthHash, handler);
 
       // Make sure we are only setting external user id for email when an email is actually set
       if (OneSignal.hasEmailId())
-         getEmailStateSynchronizer().setExternalUserId(externalId, handler);
+         getEmailStateSynchronizer().setExternalUserId(externalId, externalIdAuthHash, handler);
    }
 
    // This is to indicate that StateSynchronizer can start making REST API calls
