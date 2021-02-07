@@ -8,31 +8,32 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.UUID;
 
-import static com.onesignal.OneSignalPackagePrivateHelper.OSTestTrigger;
 import static com.onesignal.OneSignalPackagePrivateHelper.OSTestInAppMessage;
+import static com.onesignal.OneSignalPackagePrivateHelper.OSTestTrigger;
 import static com.onesignal.OneSignalPackagePrivateHelper.OSTestTrigger.OSTriggerKind;
 
 public class InAppMessagingHelpers {
     public static final String TEST_SPANISH_ANDROID_VARIANT_ID = "d8cc-11e4-bed1-df8f05be55ba-a4b3gj7f";
     public static final String TEST_ENGLISH_ANDROID_VARIANT_ID = "11e4-bed1-df8f05be55ba-a4b3gj7f-d8cc";
-    public static final String ONESIGNAL_APP_ID = "b2f7f966-d8cc-11e4-bed1-df8f05be55ba";
+    public static final String ONESIGNAL_APP_ID = "b4f7f966-d8cc-11e4-bed1-df8f05be55ba";
     public static final String IAM_CLICK_ID = "12345678-1234-1234-1234-123456789012";
+    public static final String IAM_PAGE_ID = "12345678-1234-ABCD-1234-123456789012";
 
     public static boolean evaluateMessage(OSInAppMessage message) {
-        return OSInAppMessageController.getController().triggerController.evaluateMessageTriggers(message);
+        return OneSignal.getInAppMessageController().triggerController.evaluateMessageTriggers(message);
     }
 
     public static boolean dynamicTriggerShouldFire(OSTrigger trigger) {
-        return OSInAppMessageController.getController().triggerController.dynamicTriggerController.dynamicTriggerShouldFire(trigger);
+        return OneSignal.getInAppMessageController().triggerController.dynamicTriggerController.dynamicTriggerShouldFire(trigger);
     }
 
     public static void resetSessionLaunchTime() {
-        OSDynamicTriggerController.sessionLaunchTime = new Date();
+        OSDynamicTriggerController.resetSessionLaunchTime();
     }
 
     public static void clearTestState() {
         OneSignal.pauseInAppMessages(false);
-        OSInAppMessageController.getController().getInAppMessageDisplayQueue().clear();
+        OneSignal.getInAppMessageController().getInAppMessageDisplayQueue().clear();
     }
 
     // Convenience method that wraps an object in a JSON Array
@@ -108,6 +109,17 @@ public class InAppMessagingHelpers {
         return new OSTestInAppMessage(basicIAMJSONObject(triggerJson));
     }
 
+    public static OSTestInAppMessage buildTestMessageWithEndTime(final OSTriggerKind kind, final String key, final String operator, final Object value, final boolean pastEndTime) throws JSONException {
+        JSONArray triggerJson = basicTrigger(kind, key, operator, value);
+        JSONObject json = basicIAMJSONObject(triggerJson);
+        if (pastEndTime) {
+            json.put("end_time", "1960-01-01T00:00:00.000Z");
+        } else {
+            json.put("end_time", "2200-01-01T00:00:00.000Z");
+        }
+        return new OSTestInAppMessage(json);
+    }
+
     public static OSTestInAppMessage buildTestMessageWithMultipleTriggers(ArrayList<ArrayList<OSTestTrigger>> triggers) throws JSONException {
         JSONArray ors = buildTriggers(triggers);
         return buildTestMessage(ors);
@@ -157,12 +169,20 @@ public class InAppMessagingHelpers {
             put("click_type", "button");
             put("id", IAM_CLICK_ID);
             put("name", "click_name");
-            put("url", "https://www.onesignal.com");
+            put("url", "https://www.signalone.app");
             put("url_target", "webview");
             put("close", true);
+            put("pageId", IAM_PAGE_ID);
             put("data", new JSONObject() {{
                 put("test", "value");
             }});
+        }};
+    }
+
+    public static JSONObject buildTestPageJson() throws JSONException {
+        return new JSONObject() {{
+            put("pageIndex", 1);
+            put("pageId", IAM_PAGE_ID);
         }};
     }
 }
