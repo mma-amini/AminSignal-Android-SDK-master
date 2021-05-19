@@ -22,6 +22,11 @@ public class ShadowOSUtils {
       return hasFCMLibrary;
    }
 
+   public static boolean hasGCMLibrary;
+   public static boolean hasGCMLibrary() {
+      return hasGCMLibrary;
+   }
+
    public static boolean isGMSInstalledAndEnabled;
    public static boolean isGMSInstalledAndEnabled() {
       return isGMSInstalledAndEnabled;
@@ -52,11 +57,6 @@ public class ShadowOSUtils {
       return isHMSCoreInstalledAndEnabled;
    }
 
-   public static void hasAllRecommendedFCMLibraries(boolean value) {
-      isGMSInstalledAndEnabled = value;
-      hasFCMLibrary = value;
-   }
-
    public static void hasAllRecommendedHMSLibraries(boolean value) {
       // required
       hasHMSPushKitLibrary = value;
@@ -79,11 +79,13 @@ public class ShadowOSUtils {
 
       supportsADM = false;
       hasFCMLibrary = false;
+      hasGCMLibrary = false;
       isGMSInstalledAndEnabled = false;
       hasHMSAvailability = false;
       hasHMSPushKitLibrary = false;
       hasHMSAGConnectLibrary = false;
       isHMSCoreInstalledAndEnabled = false;
+
    }
 
    public String getCarrierName() {

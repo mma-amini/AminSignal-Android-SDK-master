@@ -2,8 +2,7 @@ package com.onesignal;
 
 import android.content.ContentValues;
 import android.database.Cursor;
-
-import androidx.annotation.WorkerThread;
+import android.support.annotation.WorkerThread;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -206,5 +205,6 @@ class OSInAppMessageRepository {
             }
         }
     }
+
 
 }

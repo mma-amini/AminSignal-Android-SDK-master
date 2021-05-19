@@ -2,12 +2,11 @@ package com.onesignal;
 
 import android.content.Context;
 import android.os.Process;
-
-import androidx.annotation.WorkerThread;
+import android.support.annotation.WorkerThread;
 
 import com.onesignal.OneSignalDbContract.NotificationTable;
-import com.onesignal.influence.domain.OSInfluenceChannel;
-import com.onesignal.outcomes.data.OutcomesDbContract;
+import com.onesignal.influence.model.OSInfluenceChannel;
+import com.onesignal.outcomes.OSOutcomeTableProvider;
 
 class OneSignalCacheCleaner {
 
@@ -52,7 +51,7 @@ class OneSignalCacheCleaner {
      * 3. Use queried data to clean SharedPreferences
      */
     @WorkerThread
-    static synchronized void cleanCachedInAppMessages(final OneSignalDbHelper dbHelper) {
+    synchronized static void cleanCachedInAppMessages(final OneSignalDbHelper dbHelper) {
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -77,8 +76,8 @@ class OneSignalCacheCleaner {
     private static void cleanCachedNotifications(OneSignalDbHelper writableDb) {
         String whereStr = NotificationTable.COLUMN_NAME_CREATED_TIME + " < ?";
 
-        String sevenDaysAgoInSeconds = String.valueOf((OneSignal.getTime().getCurrentTimeMillis() / 1_000L) - NOTIFICATION_CACHE_DATA_LIFETIME);
-        String[] whereArgs = new String[]{ sevenDaysAgoInSeconds };
+        String sevenDaysAgoInSeconds = String.valueOf((System.currentTimeMillis() / 1_000L) - NOTIFICATION_CACHE_DATA_LIFETIME);
+        String[] whereArgs = new String[]{sevenDaysAgoInSeconds};
 
         writableDb.delete(
                 NotificationTable.TABLE_NAME,
@@ -97,12 +96,12 @@ class OneSignalCacheCleaner {
     private static void cleanCachedUniqueOutcomeEventNotifications(OneSignalDbHelper writableDb) {
         String whereStr = "NOT EXISTS(" +
                 "SELECT NULL FROM " + NotificationTable.TABLE_NAME + " n " +
-                "WHERE" + " n." + NotificationTable.COLUMN_NAME_NOTIFICATION_ID + " = " + OutcomesDbContract.CACHE_UNIQUE_OUTCOME_COLUMN_CHANNEL_INFLUENCE_ID +
-                " AND " + OutcomesDbContract.CACHE_UNIQUE_OUTCOME_COLUMN_CHANNEL_TYPE + " = \"" + OSInfluenceChannel.NOTIFICATION.toString().toLowerCase() +
+                "WHERE" + " n." + NotificationTable.COLUMN_NAME_NOTIFICATION_ID + " = " + OSOutcomeTableProvider.CACHE_UNIQUE_OUTCOME_COLUMN_CHANNEL_INFLUENCE_ID +
+                " AND " + OSOutcomeTableProvider.CACHE_UNIQUE_OUTCOME_COLUMN_CHANNEL_TYPE + " = \"" + OSInfluenceChannel.NOTIFICATION.toString().toLowerCase() +
                 "\")";
 
         writableDb.delete(
-                OutcomesDbContract.CACHE_UNIQUE_OUTCOME_TABLE,
+                OSOutcomeTableProvider.CACHE_UNIQUE_OUTCOME_TABLE,
                 whereStr,
                 null);
     }

@@ -42,7 +42,7 @@ class TrackFirebaseAnalytics {
    private static AtomicLong lastReceivedTime;
    private static AtomicLong lastOpenedTime;
    
-   private static OSNotification lastReceivedNotification;
+   private static OSNotificationPayload lastReceivedPayload;
 
    private static final String EVENT_NOTIFICATION_OPENED = "os_notification_opened";
    private static final String EVENT_NOTIFICATION_INFLUENCE_OPEN = "os_notification_influence_open";
@@ -62,11 +62,11 @@ class TrackFirebaseAnalytics {
    }
 
    void trackInfluenceOpenEvent() {
-      if (lastReceivedTime == null || lastReceivedNotification == null)
+      if (lastReceivedTime == null || lastReceivedPayload == null)
          return;
    
       // Attribute if app was opened in 2 minutes or less after displaying the notification
-      long now = OneSignal.getTime().getCurrentTimeMillis();
+      long now = System.currentTimeMillis();
       if (now - lastReceivedTime.get() > 1000 * 60 * 2)
          return;
    
@@ -86,8 +86,8 @@ class TrackFirebaseAnalytics {
          Bundle bundle = new Bundle();
          bundle.putString("source", "OneSignal");
          bundle.putString("medium", "notification");
-         bundle.putString("notification_id", lastReceivedNotification.getNotificationId());
-         bundle.putString("campaign", getCampaignNameFromNotification(lastReceivedNotification));
+         bundle.putString("notification_id", lastReceivedPayload.notificationID);
+         bundle.putString("campaign", getCampaignNameFromPayload(lastReceivedPayload));
 
          trackMethod.invoke(firebaseAnalyticsInstance, event, bundle);
       } catch (Throwable t) {
@@ -95,10 +95,10 @@ class TrackFirebaseAnalytics {
       }
    }
 
-   void trackOpenedEvent(OSNotificationOpenedResult openResult) {
+   void trackOpenedEvent(OSNotificationOpenResult openResult) {
       if(lastOpenedTime == null)
          lastOpenedTime = new AtomicLong();
-      lastOpenedTime.set(OneSignal.getTime().getCurrentTimeMillis());
+      lastOpenedTime.set(System.currentTimeMillis());
       
       try {
          //get the source, medium, campaign params from the openResult
@@ -110,8 +110,8 @@ class TrackFirebaseAnalytics {
          Bundle bundle = new Bundle();
          bundle.putString("source", "OneSignal");
          bundle.putString("medium", "notification");
-         bundle.putString("notification_id", openResult.getNotification().getNotificationId());
-         bundle.putString("campaign", getCampaignNameFromNotification(openResult.getNotification()));
+         bundle.putString("notification_id", openResult.notification.payload.notificationID);
+         bundle.putString("campaign", getCampaignNameFromPayload(openResult.notification.payload));
 
          trackMethod.invoke(firebaseAnalyticsInstance, EVENT_NOTIFICATION_OPENED, bundle);
 
@@ -122,7 +122,7 @@ class TrackFirebaseAnalytics {
 
    }
 
-   void trackReceivedEvent(OSNotificationOpenedResult receivedResult) {
+   void trackReceivedEvent(OSNotificationOpenResult receivedResult) {
       try {
          //get the source, medium, campaign params from the openResult
          Object firebaseAnalyticsInstance = getFirebaseAnalyticsInstance(appContext);
@@ -132,27 +132,27 @@ class TrackFirebaseAnalytics {
          Bundle bundle = new Bundle();
          bundle.putString("source", "OneSignal");
          bundle.putString("medium", "notification");
-         bundle.putString("notification_id", receivedResult.getNotification().getNotificationId());
-         bundle.putString("campaign", getCampaignNameFromNotification(receivedResult.getNotification()));
+         bundle.putString("notification_id", receivedResult.notification.payload.notificationID);
+         bundle.putString("campaign", getCampaignNameFromPayload(receivedResult.notification.payload));
 
          trackMethod.invoke(firebaseAnalyticsInstance, EVENT_NOTIFICATION_RECEIVED, bundle);
 
          if(lastReceivedTime == null)
             lastReceivedTime = new AtomicLong();
-         lastReceivedTime.set(OneSignal.getTime().getCurrentTimeMillis());
+         lastReceivedTime.set(System.currentTimeMillis());
 
-         lastReceivedNotification = receivedResult.getNotification();
+         lastReceivedPayload = receivedResult.notification.payload;
 
       } catch (Throwable t) {
          t.printStackTrace();
       }
    }
 
-   private String getCampaignNameFromNotification(OSNotification notification) {
-      if (!notification.getTemplateName().isEmpty() && !notification.getTemplateId().isEmpty())
-         return notification.getTemplateName() + " - " + notification.getTemplateId();
-      else if (notification.getTitle() != null)
-         return notification.getTitle().substring(0, Math.min(10, notification.getTitle().length()));
+   private String getCampaignNameFromPayload(OSNotificationPayload payload) {
+      if (!payload.templateName.isEmpty() && !payload.templateId.isEmpty())
+         return payload.templateName + " - " + payload.templateId;
+      else if (payload.title != null)
+         return payload.title.substring(0, Math.min(10, payload.title.length()));
       
       return "";
    }

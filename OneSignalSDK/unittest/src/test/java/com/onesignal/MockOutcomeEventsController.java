@@ -1,9 +1,9 @@
 package com.onesignal;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 
-import com.onesignal.outcomes.data.OSOutcomeEventsFactory;
+import com.onesignal.outcomes.OSOutcomeEventsFactory;
 
 public class MockOutcomeEventsController extends OSOutcomeEventsController {
 

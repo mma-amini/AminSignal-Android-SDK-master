@@ -31,12 +31,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 public class OSEmailSubscriptionStateChanges {
-    private OSEmailSubscriptionState from, to;
-
-    public OSEmailSubscriptionStateChanges(OSEmailSubscriptionState from, OSEmailSubscriptionState to) {
-        this.from = from;
-        this.to = to;
-    }
+    OSEmailSubscriptionState to, from;
 
     public OSEmailSubscriptionState getTo() {
         return to;

@@ -36,7 +36,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
-import androidx.annotation.NonNull;
+import android.support.annotation.NonNull;
 
 import com.onesignal.AndroidSupportV4Compat.ActivityCompat;
 
@@ -56,7 +56,7 @@ public class PermissionsActivity extends Activity {
    protected void onCreate(Bundle savedInstanceState) {
       super.onCreate(savedInstanceState);
 
-      OneSignal.initWithContext(this);
+      OneSignal.setAppContext(this);
 
       // Android sets android:hasCurrentPermissionsRequest if the Activity was recreated while
       //  the permission prompt is showing to the user.
@@ -113,15 +113,15 @@ public class PermissionsActivity extends Activity {
                if (granted) {
                    LocationController.startGetLocation();
                } else {
-                   attemptToShowLocationPermissionSettings();
+                  attemptToShowLocationPermissionSettings();
                    LocationController.fireFailedComplete();
                }
             }
          }, DELAY_TIME_CALLBACK_CALL);
       }
-      ActivityLifecycleHandler activityLifecycleHandler = ActivityLifecycleListener.getActivityLifecycleHandler();
-      if (activityLifecycleHandler != null)
-         activityLifecycleHandler.removeActivityAvailableListener(TAG);
+      ActivityLifecycleHandler handler = ActivityLifecycleListener.getActivityLifecycleHandler();
+      if (handler != null)
+         handler.removeActivityAvailableListener(TAG);
       finish();
       overridePendingTransition(R.anim.onesignal_fade_in, R.anim.onesignal_fade_out);
    }
@@ -171,8 +171,8 @@ public class PermissionsActivity extends Activity {
          }
       };
 
-      ActivityLifecycleHandler activityLifecycleHandler = ActivityLifecycleListener.getActivityLifecycleHandler();
-      if (activityLifecycleHandler != null)
-         activityLifecycleHandler.addActivityAvailableListener(TAG, activityAvailableListener);
+      ActivityLifecycleHandler handler = ActivityLifecycleListener.getActivityLifecycleHandler();
+      if (handler != null)
+         handler.addActivityAvailableListener(TAG, activityAvailableListener);
    }
 }

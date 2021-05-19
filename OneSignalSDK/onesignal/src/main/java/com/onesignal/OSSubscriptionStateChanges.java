@@ -30,13 +30,8 @@ package com.onesignal;
 import org.json.JSONObject;
 
 public class OSSubscriptionStateChanges {
-   private OSSubscriptionState from, to;
-
-   public OSSubscriptionStateChanges(OSSubscriptionState from, OSSubscriptionState to) {
-      this.from = from;
-      this.to = to;
-   }
-
+   OSSubscriptionState to, from;
+   
    public OSSubscriptionState getTo() {
       return to;
    }

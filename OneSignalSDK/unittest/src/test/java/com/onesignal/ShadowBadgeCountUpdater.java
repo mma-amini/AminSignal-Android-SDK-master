@@ -29,7 +29,6 @@ package com.onesignal;
 
 import android.content.Context;
 
-import org.robolectric.annotation.Implementation;
 import org.robolectric.annotation.Implements;
 
 @Implements(BadgeCountUpdater.class)
@@ -37,7 +36,6 @@ public class ShadowBadgeCountUpdater {
 
    public static int lastCount = 0;
 
-   @Implementation
    public static void updateCount(int count, Context context) {
       lastCount = count;
    }

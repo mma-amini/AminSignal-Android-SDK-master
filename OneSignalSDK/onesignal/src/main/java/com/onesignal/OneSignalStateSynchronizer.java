@@ -27,12 +27,11 @@
 
 package com.onesignal;
 
-import androidx.annotation.Nullable;
-
-import com.onesignal.OneSignal.ChangeTagsUpdateHandler;
+import android.support.annotation.Nullable;
 
 import org.json.JSONException;
 import org.json.JSONObject;
+import com.onesignal.OneSignal.ChangeTagsUpdateHandler;
 
 import java.util.HashMap;
 
@@ -108,6 +107,18 @@ class OneSignalStateSynchronizer {
          if (handler != null)
             handler.onFailure(new OneSignal.SendTagsError(-1, "Encountered an error attempting to serialize your tags into JSON: " + e.getMessage() + "\n" + e.getStackTrace()));
          e.printStackTrace();
+      }
+   }
+
+   static void syncHashedEmail(String email) {
+      try {
+         JSONObject emailFields = new JSONObject();
+         emailFields.put("em_m", OSUtils.hexDigest(email, "MD5"));
+         emailFields.put("em_s", OSUtils.hexDigest(email, "SHA-1"));
+
+         getPushStateSynchronizer().syncHashedEmail(emailFields);
+      } catch (Throwable t) {
+         t.printStackTrace();
       }
    }
 
@@ -216,7 +227,7 @@ class OneSignalStateSynchronizer {
                @Override
                public void run() {
                   if (completionHandler != null)
-                     completionHandler.onSuccess(responses);
+                     completionHandler.onComplete(responses);
                }
             });
          }

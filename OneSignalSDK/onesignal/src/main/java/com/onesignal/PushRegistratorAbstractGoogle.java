@@ -31,9 +31,9 @@ import android.content.Context;
 
 import java.io.IOException;
 
-// PushRegistratorFCM extend this class
-// Only getToken() needs to be implement for FCM
-// This performs error handling and retry logic for FCM
+// Both PushRegistratorFCM and PushRegistratorGCM extend this class
+// Only getToken() needs to be implement for FCM and GCM
+// Both throw the same exceptions so this does the error handling and retry logic
 abstract class PushRegistratorAbstractGoogle implements PushRegistrator {
    private RegisteredHandler registeredHandler;
 

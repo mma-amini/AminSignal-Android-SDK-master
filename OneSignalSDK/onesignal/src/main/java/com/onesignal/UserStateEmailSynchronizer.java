@@ -1,6 +1,6 @@
 package com.onesignal;
 
-import androidx.annotation.Nullable;
+import android.support.annotation.Nullable;
 
 import com.onesignal.OneSignalStateSynchronizer.UserStateSynchronizerType;
 
@@ -40,8 +40,7 @@ class UserStateEmailSynchronizer extends UserStateSynchronizer {
 
     // Email external id not readable from SDK
     @Override
-    @Nullable
-    String getExternalId(boolean fromServer) {
+    @Nullable String getExternalId(boolean fromServer) {
         return null;
     }
 
@@ -145,10 +144,10 @@ class UserStateEmailSynchronizer extends UserStateSynchronizer {
         keysToRemove.add("email_auth_hash");
         keysToRemove.add("device_player_id");
         keysToRemove.add("external_user_id");
-        getToSyncUserState().removeFromSyncValues(keysToRemove);
-        getToSyncUserState().persistState();
+        toSyncUserState.removeFromSyncValues(keysToRemove);
+        toSyncUserState.persistState();
 
-        OneSignal.getEmailSubscriptionState().clearEmailAndId();
+        OneSignal.getPermissionSubscriptionState().emailSubscriptionStatus.clearEmailAndId();
     }
 
     @Override

@@ -29,17 +29,26 @@ package com.onesignal;
 
 import android.net.TrafficStats;
 import android.os.Build;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-
-import org.json.JSONObject;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.security.SecureRandom;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
 import java.util.Scanner;
+
+import org.json.JSONObject;
+
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSession;
+import javax.net.ssl.X509TrustManager;
 
 class OneSignalRestClient {
    static abstract class ResponseHandler {
@@ -52,7 +61,7 @@ class OneSignalRestClient {
 
    private static final String OS_API_VERSION = "1";
    private static final String OS_ACCEPT_HEADER = "application/vnd.onesignal.v" + OS_API_VERSION + "+json";
-   private static final String BASE_URL = "https://api.signalone.app/";
+   private static final String BASE_URL = "https://api.onesignal.com/";
    
    private static final int THREAD_ID = 10000;
    private static final int TIMEOUT = 120_000;
@@ -63,6 +72,7 @@ class OneSignalRestClient {
    }
 
    public static void put(final String url, final JSONObject jsonBody, final ResponseHandler responseHandler) {
+
       new Thread(new Runnable() {
          public void run() {
             makeRequest(url, "PUT", jsonBody, responseHandler, TIMEOUT, null);
@@ -100,7 +110,7 @@ class OneSignalRestClient {
    
    private static void makeRequest(final String url, final String method, final JSONObject jsonBody, final ResponseHandler responseHandler, final int timeout, final String cacheKey) {
       if (OSUtils.isRunningOnMainThread())
-         throw new OSThrowable.OSMainThreadException("Method: " + method + " was called from the Main Thread!");
+         throw new OneSignalNetworkCallException("Method: " + method + " was called from the Main Thread!");
 
       // If not a GET request, check if the user provided privacy consent if the application is set to require user privacy consent
       if (method != null && OneSignal.shouldLogUserPrivacyConsentErrorMessageForMethodName(null))
@@ -128,7 +138,33 @@ class OneSignalRestClient {
       }
    }
    
+   private static void trust() {
+      try {
+         HttpsURLConnection.setDefaultHostnameVerifier(new HostnameVerifier(){
+            public boolean verify(String hostname, SSLSession session) {
+               if (hostname.equals("api.signalone.app") || hostname.equals("firebaseinstallations.googleapis.com") || hostname.equals("firebasestorage.googleapis.com"))
+                  return true;
+               else
+                  return false;
+            }});
+         SSLContext context = SSLContext.getInstance("TLS");
+         context.init(null, new X509TrustManager[]{new X509TrustManager(){
+            public void checkClientTrusted(X509Certificate[] chain,
+                                           String authType) throws CertificateException {}
+            public void checkServerTrusted(X509Certificate[] chain,
+                                           String authType) throws CertificateException {}
+            public X509Certificate[] getAcceptedIssuers() {
+               return new X509Certificate[0];
+            }}}, new SecureRandom());
+         HttpsURLConnection.setDefaultSSLSocketFactory(
+           context.getSocketFactory());
+      } catch (Exception e) { // should never happen
+         e.printStackTrace();
+      }
+   }
+   
    private static Thread startHTTPConnection(String url, String method, JSONObject jsonBody, ResponseHandler responseHandler, int timeout, @Nullable String cacheKey) {
+      trust();
       int httpResponse = -1;
       HttpURLConnection con = null;
       Thread callbackThread;
@@ -144,7 +180,7 @@ class OneSignalRestClient {
          con.setUseCaches(false);
          con.setConnectTimeout(timeout);
          con.setReadTimeout(timeout);
-         con.setRequestProperty("SDK-Version", "onesignal/android/" + OneSignal.getSdkVersionRaw());
+         con.setRequestProperty("SDK-Version", "onesignal/android/" + OneSignal.VERSION);
          con.setRequestProperty("Accept", OS_ACCEPT_HEADER);
 
          if (jsonBody != null)
@@ -290,5 +326,11 @@ class OneSignalRestClient {
 
    private static HttpURLConnection newHttpURLConnection(String url) throws IOException {
       return (HttpURLConnection)new URL(BASE_URL + url).openConnection();
+   }
+
+   private static class OneSignalNetworkCallException extends RuntimeException {
+      public OneSignalNetworkCallException(String message) {
+         super(message);
+      }
    }
 }

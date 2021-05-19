@@ -227,8 +227,7 @@ abstract class UserState {
     }
 
     JSONObject generateJsonDiff(UserState newState, boolean isSessionCall) {
-        addDependFields();
-        newState.addDependFields();
+        addDependFields(); newState.addDependFields();
         Set<String> includeFields = getGroupChangeFields(newState);
         JSONObject sendJson = generateJsonDiff(syncValues, newState.syncValues, null, includeFields);
 

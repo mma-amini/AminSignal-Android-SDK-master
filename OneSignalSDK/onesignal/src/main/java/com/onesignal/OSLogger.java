@@ -1,7 +1,7 @@
 package com.onesignal;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 
 public interface OSLogger {
 
@@ -9,12 +9,8 @@ public interface OSLogger {
 
     void debug(@NonNull String message);
 
-    void info(@NonNull String message);
-
     void warning(@NonNull String message);
 
-    void error(@NonNull String message);
-
-    void error(@NonNull String message, @NonNull Throwable throwable);
+    void error(@NonNull String message, @Nullable Throwable throwable);
 
 }

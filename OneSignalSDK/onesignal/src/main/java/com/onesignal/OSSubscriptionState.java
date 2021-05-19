@@ -28,44 +28,43 @@
 package com.onesignal;
 
 
-import androidx.annotation.Nullable;
+import android.support.annotation.Nullable;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
 public class OSSubscriptionState implements Cloneable {
-
-   private static final String CHANGED_KEY = "changed";
-
-   private OSObservable<Object, OSSubscriptionState> observable;
-
-   private String userId;
-   private String pushToken;
-   private boolean accepted;
-   private boolean pushDisabled;
-
+   
+   OSObservable<Object, OSSubscriptionState> observable;
+   
    OSSubscriptionState(boolean asFrom, boolean permissionAccepted) {
-      observable = new OSObservable<>(CHANGED_KEY, false);
+      observable = new OSObservable<>("changed", false);
       
       if (asFrom) {
-         pushDisabled = OneSignalPrefs.getBool(OneSignalPrefs.PREFS_ONESIGNAL,
-                 OneSignalPrefs.PREFS_ONESIGNAL_SUBSCRIPTION_LAST, true);
+         userSubscriptionSetting = OneSignalPrefs.getBool(OneSignalPrefs.PREFS_ONESIGNAL,
+                 OneSignalPrefs.PREFS_ONESIGNAL_SUBSCRIPTION_LAST, false);
          userId = OneSignalPrefs.getString(OneSignalPrefs.PREFS_ONESIGNAL,
                  OneSignalPrefs.PREFS_ONESIGNAL_PLAYER_ID_LAST, null);
          pushToken = OneSignalPrefs.getString(OneSignalPrefs.PREFS_ONESIGNAL,
                  OneSignalPrefs.PREFS_ONESIGNAL_PUSH_TOKEN_LAST, null);
          accepted = OneSignalPrefs.getBool(OneSignalPrefs.PREFS_ONESIGNAL,
                  OneSignalPrefs.PREFS_ONESIGNAL_PERMISSION_ACCEPTED_LAST, false);
-      } else {
-         pushDisabled = !OneSignalStateSynchronizer.getUserSubscribePreference();
+      }
+      else {
+         userSubscriptionSetting = OneSignalStateSynchronizer.getUserSubscribePreference();
          userId = OneSignal.getUserId();
          pushToken = OneSignalStateSynchronizer.getRegistrationId();
          accepted = permissionAccepted;
       }
    }
    
+   private boolean accepted;
+   private boolean userSubscriptionSetting;
+   private String userId;
+   private String pushToken;
+   
    void changed(OSPermissionState state) {
-      setAccepted(state.areNotificationsEnabled());
+      setAccepted(state.getEnabled());
    }
    
    void setUserId(@Nullable String id) {
@@ -97,31 +96,32 @@ public class OSSubscriptionState implements Cloneable {
       return pushToken;
    }
    
-   void setPushDisabled(boolean disabled) {
-      boolean changed = pushDisabled != disabled;
-      pushDisabled = disabled;
+   
+   void setUserSubscriptionSetting(boolean set) {
+      boolean changed = userSubscriptionSetting != set;
+      userSubscriptionSetting = set;
       if (changed)
          observable.notifyChange(this);
    }
    
-   public boolean isPushDisabled() {
-      return pushDisabled;
+   public boolean getUserSubscriptionSetting() {
+      return userSubscriptionSetting;
    }
    
    private void setAccepted(boolean set) {
-      boolean lastSubscribed = isSubscribed();
+      boolean lastSubscribed = getSubscribed();
       accepted = set;
-      if (lastSubscribed != isSubscribed())
+      if (lastSubscribed != getSubscribed())
          observable.notifyChange(this);
    }
    
-   public boolean isSubscribed() {
-      return userId != null && pushToken != null && !pushDisabled && accepted;
+   public boolean getSubscribed() {
+      return userId != null && pushToken != null && userSubscriptionSetting && accepted;
    }
    
    void persistAsFrom() {
       OneSignalPrefs.saveBool(OneSignalPrefs.PREFS_ONESIGNAL,
-              OneSignalPrefs.PREFS_ONESIGNAL_SUBSCRIPTION_LAST, pushDisabled);
+              OneSignalPrefs.PREFS_ONESIGNAL_SUBSCRIPTION_LAST, userSubscriptionSetting);
       OneSignalPrefs.saveString(OneSignalPrefs.PREFS_ONESIGNAL,
               OneSignalPrefs.PREFS_ONESIGNAL_PLAYER_ID_LAST, userId);
       OneSignalPrefs.saveString(OneSignalPrefs.PREFS_ONESIGNAL,
@@ -131,16 +131,12 @@ public class OSSubscriptionState implements Cloneable {
    }
    
    boolean compare(OSSubscriptionState from) {
-      return pushDisabled != from.pushDisabled
+      return userSubscriptionSetting != from.userSubscriptionSetting
           || !(userId != null ? userId : "").equals(from.userId != null ? from.userId : "")
           || !(pushToken != null ? pushToken : "").equals(from.pushToken != null ? from.pushToken : "")
           || accepted != from.accepted;
    }
-
-   public OSObservable<Object, OSSubscriptionState> getObservable() {
-      return observable;
-   }
-
+   
    protected Object clone() {
       try {
          return super.clone();
@@ -163,8 +159,8 @@ public class OSSubscriptionState implements Cloneable {
          else
             mainObj.put("pushToken", JSONObject.NULL);
          
-         mainObj.put("isPushDisabled", isPushDisabled());
-         mainObj.put("isSubscribed", isSubscribed());
+         mainObj.put("userSubscriptionSetting", userSubscriptionSetting);
+         mainObj.put("subscribed", getSubscribed());
       }
       catch(JSONException e) {
          e.printStackTrace();

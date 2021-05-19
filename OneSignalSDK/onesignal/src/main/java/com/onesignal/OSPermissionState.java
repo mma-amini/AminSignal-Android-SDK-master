@@ -30,54 +30,48 @@ package com.onesignal;
 import org.json.JSONObject;
 
 public class OSPermissionState implements Cloneable {
-
-   private static final String ARE_NOTIFICATION_ENABLED_KEY = "areNotificationsEnabled";
-   private static final String CHANGED_KEY = "changed";
-
-   private OSObservable<Object, OSPermissionState> observable;
-   private boolean notificationsEnabled;
-
+   
+   OSObservable<Object, OSPermissionState> observable;
+   
    OSPermissionState(boolean asFrom) {
       // Java 8 method reference can be used in the future with Android Studio 2.4.0
       //   OSPermissionChangedInternalObserver::changed
-      observable = new OSObservable<>(CHANGED_KEY, false);
+      observable = new OSObservable<>("changed", false);
       
       if (asFrom) {
-         notificationsEnabled = OneSignalPrefs.getBool(OneSignalPrefs.PREFS_ONESIGNAL,
+         enabled = OneSignalPrefs.getBool(OneSignalPrefs.PREFS_ONESIGNAL,
                  OneSignalPrefs.PREFS_ONESIGNAL_ACCEPTED_NOTIFICATION_LAST,false);
-      } else {
-         refreshAsTo();
       }
+      else
+         refreshAsTo();
    }
+   
+   private boolean enabled;
    
    void refreshAsTo() {
-      setNotificationsEnabled(OSUtils.areNotificationsEnabled(OneSignal.appContext));
+      setEnabled(OSUtils.areNotificationsEnabled(OneSignal.appContext));
    }
    
-   public boolean areNotificationsEnabled() {
-      return notificationsEnabled;
+   public boolean getEnabled() {
+      return enabled;
    }
    
-   private void setNotificationsEnabled(boolean set) {
-      boolean changed = notificationsEnabled != set;
-      notificationsEnabled = set;
+   private void setEnabled(boolean set) {
+      boolean changed = enabled != set;
+      enabled = set;
       if (changed)
          observable.notifyChange(this);
    }
    
    void persistAsFrom() {
       OneSignalPrefs.saveBool(OneSignalPrefs.PREFS_ONESIGNAL,
-              OneSignalPrefs.PREFS_ONESIGNAL_ACCEPTED_NOTIFICATION_LAST, notificationsEnabled);
+              OneSignalPrefs.PREFS_ONESIGNAL_ACCEPTED_NOTIFICATION_LAST, enabled);
    }
    
    boolean compare(OSPermissionState from) {
-      return notificationsEnabled != from.notificationsEnabled;
+      return enabled != from.enabled;
    }
-
-   public OSObservable<Object, OSPermissionState> getObservable() {
-      return observable;
-   }
-
+   
    protected Object clone() {
       try {
          return super.clone();
@@ -89,7 +83,7 @@ public class OSPermissionState implements Cloneable {
       JSONObject mainObj = new JSONObject();
       
       try {
-         mainObj.put(ARE_NOTIFICATION_ENABLED_KEY, notificationsEnabled);
+         mainObj.put("enabled", enabled);
       }
       catch(Throwable t) {
          t.printStackTrace();
@@ -102,6 +96,7 @@ public class OSPermissionState implements Cloneable {
    public String toString() {
       return toJSONObject().toString();
    }
-
+   
+   
    // FUTURE: Can add a list of categories here for Android O.
 }

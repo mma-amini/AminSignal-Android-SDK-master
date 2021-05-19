@@ -57,12 +57,12 @@ class NotificationSummaryManager {
           null, null,
           NotificationTable._ID + " DESC");   // sort order, new to old);
    
-      int notificationsInGroup = cursor.getCount();
+      int notifsInGroup = cursor.getCount();
    
       // If all individual notifications consumed
       //   - Remove summary notification from the shade.
       //   - Mark summary notification as consumed.
-      if (notificationsInGroup == 0) {
+      if (notifsInGroup == 0) {
          cursor.close();
    
          Integer androidNotifId = getSummaryNotificationId(db, group);
@@ -86,7 +86,7 @@ class NotificationSummaryManager {
       // Only a single notification now in the group
       //   - Need to recreate a summary notification so it looks like a normal notifications since we
       //        only have one notification now.
-      if (notificationsInGroup == 1) {
+      if (notifsInGroup == 1) {
          cursor.close();
          Integer androidNotifId = getSummaryNotificationId(db, group);
          if (androidNotifId == null)
@@ -108,15 +108,15 @@ class NotificationSummaryManager {
          if (androidNotifId == null)
             return cursor;
          
-         OSNotificationGenerationJob notificationJob = new OSNotificationGenerationJob(context);
-         notificationJob.setRestoring(true);
-         notificationJob.setShownTimeStamp(datetime);
+         NotificationGenerationJob notifJob = new NotificationGenerationJob(context);
+         notifJob.restoring = true;
+         notifJob.shownTimeStamp = datetime;
       
          JSONObject payload = new JSONObject();
          payload.put("grp", group);
-         notificationJob.setJsonPayload(payload);
+         notifJob.jsonPayload = payload;
       
-         GenerateNotification.updateSummaryNotification(notificationJob);
+         GenerateNotification.updateSummaryNotification(notifJob);
       } catch (JSONException e) {}
       
       return cursor;
@@ -132,7 +132,7 @@ class NotificationSummaryManager {
       try {
          cursor = dbHelper.query(
              NotificationTable.TABLE_NAME,
-             OSNotificationRestoreWorkManager.COLUMNS_FOR_RESTORE,
+             NotificationRestorer.COLUMNS_FOR_RESTORE,
             NotificationTable.COLUMN_NAME_GROUP_ID + " = ? AND " +
              NotificationTable.COLUMN_NAME_DISMISSED + " = 0 AND " +
              NotificationTable.COLUMN_NAME_OPENED + " = 0 AND " +
@@ -142,8 +142,8 @@ class NotificationSummaryManager {
              null,                            // filter by row groups
              null
          );
-
-         OSNotificationRestoreWorkManager.showNotificationsFromCursor(context, cursor, 0);
+   
+         NotificationRestorer.showNotificationsFromCursor(context, cursor, 0);
       } catch (Throwable t) {
          OneSignal.Log(OneSignal.LOG_LEVEL.ERROR, "Error restoring notification records! ", t);
       } finally {
@@ -214,7 +214,7 @@ class NotificationSummaryManager {
                notificationManager.cancel(groupId);
          } else {
             // Clear the most recent notification from the status bar summary
-            OneSignal.removeNotification(mostRecentId);
+            OneSignal.cancelNotification(mostRecentId);
          }
       }
    }

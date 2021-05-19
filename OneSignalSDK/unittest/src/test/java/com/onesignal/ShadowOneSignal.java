@@ -2,7 +2,6 @@ package com.onesignal;
 
 import android.util.Log;
 
-import org.robolectric.annotation.Implementation;
 import org.robolectric.annotation.Implements;
 
 @Implements(OneSignal.class)
@@ -15,8 +14,4 @@ public class ShadowOneSignal {
       Log.e("", message, throwable);
    }
 
-   @Implementation
-   public static void fireNotificationOpenedHandler(final OSNotificationOpenedResult openedResult) {
-      OneSignal.notificationOpenedHandler.notificationOpened(openedResult);
-   }
 }

@@ -1,14 +1,11 @@
 package com.test.onesignal;
 
 import android.app.Activity;
-import android.app.Application;
 import android.content.Intent;
 import android.support.annotation.NonNull;
 
-import androidx.test.core.app.ApplicationProvider;
-
 import com.onesignal.NotificationOpenedActivityHMS;
-import com.onesignal.OSNotificationOpenedResult;
+import com.onesignal.OSNotificationOpenResult;
 import com.onesignal.OneSignal;
 import com.onesignal.OneSignalPackagePrivateHelper.UserState;
 import com.onesignal.ShadowCustomTabsClient;
@@ -29,23 +26,21 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
-import org.robolectric.android.controller.ActivityController;
+import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 import org.robolectric.shadows.ShadowLog;
 
 import java.util.UUID;
 
-import static com.onesignal.OneSignalPackagePrivateHelper.NotificationBundleProcessor.PUSH_ADDITIONAL_DATA_KEY;
-import static com.onesignal.OneSignalPackagePrivateHelper.OSNotificationFormatHelper.PAYLOAD_OS_ROOT_CUSTOM;
-import static com.onesignal.OneSignalPackagePrivateHelper.OSNotificationFormatHelper.PAYLOAD_OS_NOTIFICATION_ID;
-import static com.onesignal.OneSignalPackagePrivateHelper.GenerateNotification.BUNDLE_KEY_ACTION_ID;
 import static com.onesignal.InAppMessagingHelpers.ONESIGNAL_APP_ID;
-import static com.onesignal.ShadowOneSignalRestClient.setRemoteParamsGetHtmlResponse;
+import static com.onesignal.OneSignalPackagePrivateHelper.GenerateNotification.BUNDLE_KEY_ACTION_ID;
+import static com.onesignal.OneSignalPackagePrivateHelper.NotificationBundleProcessor.PUSH_ADDITIONAL_DATA_KEY;
+import static com.onesignal.OneSignalPackagePrivateHelper.OSNotificationFormatHelper.PAYLOAD_OS_NOTIFICATION_ID;
+import static com.onesignal.OneSignalPackagePrivateHelper.OSNotificationFormatHelper.PAYLOAD_OS_ROOT_CUSTOM;
 import static com.test.onesignal.RestClientAsserts.assertNotificationOpenAtIndex;
 import static com.test.onesignal.TestHelpers.fastColdRestartApp;
 import static com.test.onesignal.TestHelpers.threadAndTaskWait;
 import static junit.framework.Assert.assertEquals;
-import static junit.framework.Assert.assertNotNull;
 import static org.robolectric.Shadows.shadowOf;
 
 @Config(
@@ -78,8 +73,6 @@ public class NotificationOpenedActivityHMSIntegrationTestsRunner {
     public void beforeEachTest() throws Exception {
         TestHelpers.beforeTestInitAndCleanup();
         ShadowOSUtils.supportsHMS(true);
-        // Set remote_params GET response
-        setRemoteParamsGetHtmlResponse();
     }
 
     private static @NonNull Intent helper_baseHMSOpenIntent() {
@@ -124,8 +117,7 @@ public class NotificationOpenedActivityHMSIntegrationTestsRunner {
     }
 
     private static void helper_initSDKAndFireHMSNotificationOpenWithIntent(@NonNull Intent intent) throws Exception {
-        OneSignal.setAppId(ONESIGNAL_APP_ID);
-        OneSignal.initWithContext(ApplicationProvider.getApplicationContext());
+        OneSignal.init(RuntimeEnvironment.application, "123456789", ONESIGNAL_APP_ID);
         fastColdRestartApp();
 
         helper_startHMSOpenActivity(intent);
@@ -142,15 +134,14 @@ public class NotificationOpenedActivityHMSIntegrationTestsRunner {
     public void barebonesOSPayload_startsMainActivity() throws Exception {
         helper_initSDKAndFireHMSNotificationBarebonesOSOpenIntent();
 
-        Intent startedActivity = shadowOf((Application) ApplicationProvider.getApplicationContext()).getNextStartedActivity();
-        assertNotNull(startedActivity);
+        Intent startedActivity = shadowOf(RuntimeEnvironment.application).getNextStartedActivity();
         assertEquals(startedActivity.getComponent().getClassName(), BlankActivity.class.getName());
     }
 
     @Test
     public void barebonesOSPayload_makesNotificationOpenRequest() throws Exception {
         helper_initSDKAndFireHMSNotificationBarebonesOSOpenIntent();
-        assertNotificationOpenAtIndex(2, UserState.DEVICE_TYPE_HUAWEI);
+        assertNotificationOpenAtIndex(1, UserState.DEVICE_TYPE_HUAWEI);
     }
 
     private static String lastActionId;
@@ -158,27 +149,20 @@ public class NotificationOpenedActivityHMSIntegrationTestsRunner {
     public void firesOSNotificationOpenCallbackWithActionId() throws Exception {
         helper_initSDKAndFireHMSNotificationActionButtonTapIntent(TEST_ACTION_ID);
 
-        OneSignal.setAppId(ONESIGNAL_APP_ID);
-        OneSignal.initWithContext(ApplicationProvider.getApplicationContext());
-        OneSignal.setNotificationOpenedHandler(new OneSignal.OSNotificationOpenedHandler() {
+        OneSignal.startInit(RuntimeEnvironment.application).setNotificationOpenedHandler(new OneSignal.NotificationOpenedHandler() {
             @Override
-            public void notificationOpened(OSNotificationOpenedResult result) {
-                lastActionId = result.getAction().getActionId();
+            public void notificationOpened(OSNotificationOpenResult result) {
+                lastActionId = result.action.actionID;
             }
-        });
+        }).init();
 
         assertEquals(TEST_ACTION_ID, lastActionId);
     }
 
     @Test
     public void osIAMPreview_showsPreview() throws Exception {
-        ActivityController<BlankActivity> blankActivityController = Robolectric.buildActivity(BlankActivity.class).create();
-        Activity blankActivity = blankActivityController.get();
-        OneSignal.setAppId(ONESIGNAL_APP_ID);
-        OneSignal.initWithContext(blankActivity);
-        threadAndTaskWait();
-
-        blankActivityController.resume();
+        Activity activity = Robolectric.buildActivity(BlankActivity.class).create().get();
+        OneSignal.init(activity, "123456789", ONESIGNAL_APP_ID);
         threadAndTaskWait();
 
         Intent intent = helper_baseHMSOpenIntent()

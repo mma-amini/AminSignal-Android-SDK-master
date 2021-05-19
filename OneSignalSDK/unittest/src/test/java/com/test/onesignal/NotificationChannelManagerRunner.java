@@ -36,11 +36,13 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
 @Config(packageName = "com.onesignal.example",
+        instrumentedPackages = { "com.onesignal" },
         shadows = {
             ShadowOSUtils.class,
             ShadowRoboNotificationManager.class},
          sdk = 26
 )
+
 @RunWith(RobolectricTestRunner.class)
 public class NotificationChannelManagerRunner {
 

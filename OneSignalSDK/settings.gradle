@@ -1,2 +1,1 @@
 include ':app', ':onesignal', ':unittest'
-project(':app').projectDir = new File(settingsDir, '../examples/OneSignalDemo/app')

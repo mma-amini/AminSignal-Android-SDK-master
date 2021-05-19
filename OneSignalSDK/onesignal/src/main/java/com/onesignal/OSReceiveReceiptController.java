@@ -27,19 +27,17 @@
 
 package com.onesignal;
 
-import androidx.annotation.NonNull;
+import android.support.annotation.NonNull;
 
 class OSReceiveReceiptController {
 
     private final OSReceiveReceiptRepository repository;
 
     private static OSReceiveReceiptController sInstance;
-
     private OSReceiveReceiptController() {
         this.repository = new OSReceiveReceiptRepository();
     }
-
-    synchronized public static OSReceiveReceiptController getInstance() {
+    public static synchronized OSReceiveReceiptController getInstance() {
         if (sInstance == null)
             sInstance = new OSReceiveReceiptController();
         return sInstance;

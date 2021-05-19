@@ -34,7 +34,7 @@ import android.database.Cursor;
 import android.os.Build;
 import android.os.Bundle;
 import android.service.notification.StatusBarNotification;
-import androidx.annotation.RequiresApi;
+import android.support.annotation.RequiresApi;
 
 import com.onesignal.OneSignalDbContract.NotificationTable;
 import com.onesignal.shortcutbadger.ShortcutBadgeException;

@@ -27,7 +27,7 @@
 
 package com.onesignal;
 
-import androidx.core.app.NotificationManagerCompat;
+import android.support.v4.app.NotificationManagerCompat;
 
 import org.robolectric.annotation.Implements;
 

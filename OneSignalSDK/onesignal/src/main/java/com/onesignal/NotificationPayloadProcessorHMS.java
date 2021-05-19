@@ -4,8 +4,8 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -16,7 +16,7 @@ import static com.onesignal.GenerateNotification.BUNDLE_KEY_ACTION_ID;
 class NotificationPayloadProcessorHMS {
 
     static void handleHMSNotificationOpenIntent(@NonNull Activity activity, @Nullable Intent intent) {
-        OneSignal.initWithContext(activity.getApplicationContext());
+        OneSignal.setAppContext(activity);
         if (intent == null)
             return;
 
@@ -74,7 +74,7 @@ class NotificationPayloadProcessorHMS {
     }
 
     public static void processDataMessageReceived(@NonNull Context context, @Nullable String data) {
-        OneSignal.initWithContext(context);
+        OneSignal.setAppContext(context);
         if (data == null)
             return;
 
@@ -83,14 +83,12 @@ class NotificationPayloadProcessorHMS {
             return;
 
         NotificationBundleProcessor.ProcessedBundleResult processedResult = NotificationBundleProcessor.processBundleFromReceiver(context, bundle);
-        // TODO: Figure out the correct replacement or usage of completeWakefulIntent method
-//      FCMBroadcastReceiver.completeWakefulIntent(intent);
 
         // Return if the notification will NOT be handled by normal GcmIntentService display flow.
         if (processedResult.processed())
             return;
 
         // TODO: 4.0.0 or after - What is in GcmBroadcastReceiver should be split into a shared class to support FCM, HMS, and ADM
-        FCMBroadcastReceiver.startFCMService(context, bundle);
+        GcmBroadcastReceiver.startGCMService(context, bundle);
     }
 }

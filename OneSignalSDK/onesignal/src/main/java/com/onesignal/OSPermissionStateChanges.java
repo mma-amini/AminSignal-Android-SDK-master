@@ -30,13 +30,8 @@ package com.onesignal;
 import org.json.JSONObject;
 
 public class OSPermissionStateChanges {
-   private OSPermissionState from, to;
-
-   public OSPermissionStateChanges(OSPermissionState from, OSPermissionState to) {
-      this.from = from;
-      this.to = to;
-   }
-
+   OSPermissionState to, from;
+   
    public OSPermissionState getTo() {
       return to;
    }

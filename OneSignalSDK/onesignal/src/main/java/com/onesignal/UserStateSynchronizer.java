@@ -2,11 +2,11 @@ package com.onesignal;
 
 import android.os.Handler;
 import android.os.HandlerThread;
-import androidx.annotation.Nullable;
+import android.support.annotation.Nullable;
 
+import com.onesignal.OneSignalStateSynchronizer.UserStateSynchronizerType;
 import com.onesignal.OneSignal.ChangeTagsUpdateHandler;
 import com.onesignal.OneSignal.SendTagsError;
-import com.onesignal.OneSignalStateSynchronizer.UserStateSynchronizerType;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -76,7 +76,7 @@ abstract class UserStateSynchronizer {
 
         int mType;
 
-        Handler mHandler;
+        Handler mHandler = null;
 
         static final int MAX_RETRIES = 3, NETWORK_CALL_DELAY_TO_BUFFER_MS = 5_000;
         int currentRetry;
@@ -105,8 +105,7 @@ abstract class UserStateSynchronizer {
                     return new Runnable() {
                         @Override
                         public void run() {
-                            boolean syncUserState = !runningSyncUserState.get();
-                            if (syncUserState)
+                            if (!runningSyncUserState.get())
                                 syncUserState(false);
                         }
                     };
@@ -144,7 +143,7 @@ abstract class UserStateSynchronizer {
     // currentUserState - Current known state of the user on OneSignal's server.
     // toSyncUserState  - Pending state that will be synced to the OneSignal server.
     //                    diff will be generated between currentUserState when a sync call is made to the server.
-    private UserState currentUserState, toSyncUserState;
+    protected UserState currentUserState, toSyncUserState;
 
     protected JSONObject generateJsonDiff(JSONObject cur, JSONObject changedTo, JSONObject baseOutput, Set<String> includeFields) {
         synchronized (LOCK) {
@@ -153,34 +152,29 @@ abstract class UserStateSynchronizer {
     }
 
     protected UserState getCurrentUserState() {
-        if (currentUserState == null) {
-            synchronized (LOCK) {
-                if (currentUserState == null)
-                    currentUserState = newUserState("CURRENT_STATE", true);
-            }
+        synchronized (LOCK) {
+            if (currentUserState == null)
+                currentUserState = newUserState("CURRENT_STATE", true);
         }
 
         return currentUserState;
     }
 
     protected UserState getToSyncUserState() {
-        if (toSyncUserState == null) {
-            synchronized (LOCK) {
-                if (toSyncUserState == null)
-                    toSyncUserState = newUserState("TOSYNC_STATE", true);
-            }
+        synchronized (LOCK) {
+            if (toSyncUserState == null)
+                toSyncUserState = newUserState("TOSYNC_STATE", true);
         }
 
         return toSyncUserState;
     }
 
     void initUserState() {
-        if (currentUserState == null) {
-            synchronized (LOCK) {
-                if (currentUserState == null)
-                    currentUserState = newUserState("CURRENT_STATE", true);
-            }
+        synchronized (LOCK) {
+            if (currentUserState == null)
+                currentUserState = newUserState("CURRENT_STATE", true);
         }
+
         getToSyncUserState();
     }
 
@@ -237,7 +231,7 @@ abstract class UserStateSynchronizer {
             jsonBody = currentUserState.generateJsonDiff(getToSyncUserState(), isSessionCall);
             UserState toSyncState = getToSyncUserState();
             dependDiff = currentUserState.generateJsonDiffFromDependValues(toSyncState, null);;
-            OneSignal.onesignalLog(OneSignal.LOG_LEVEL.DEBUG, "UserStateSynchronizer internalSyncUserState from session call: "+ isSessionCall + " jsonBody: " + jsonBody);
+
             // Updates did not result in a server side change, skipping network call
             if (jsonBody == null) {
                 currentUserState.persistStateAfterSync(dependDiff, null);
