@@ -29,8 +29,6 @@ package com.onesignal;
 
 import android.net.TrafficStats;
 import android.os.Build;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -49,6 +47,9 @@ import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSession;
 import javax.net.ssl.X509TrustManager;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 class OneSignalRestClient {
    static abstract class ResponseHandler {
