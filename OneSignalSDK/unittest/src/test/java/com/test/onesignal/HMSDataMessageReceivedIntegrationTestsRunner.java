@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 
 import com.onesignal.OneSignalPackagePrivateHelper.NotificationPayloadProcessorHMS;
+import com.onesignal.ShadowGenerateNotification;
 import com.onesignal.ShadowNotificationManagerCompat;
 import com.onesignal.ShadowOSUtils;
 import com.onesignal.ShadowRoboNotificationManager;
@@ -13,6 +14,8 @@ import com.onesignal.example.BlankActivity;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -25,13 +28,13 @@ import org.robolectric.shadows.ShadowLog;
 
 import java.util.UUID;
 
+import static com.onesignal.OneSignalPackagePrivateHelper.HMSProcessor_processDataMessageReceived;
 import static com.onesignal.OneSignalPackagePrivateHelper.OSNotificationFormatHelper.PAYLOAD_OS_NOTIFICATION_ID;
 import static com.onesignal.OneSignalPackagePrivateHelper.OSNotificationFormatHelper.PAYLOAD_OS_ROOT_CUSTOM;
+import static com.test.onesignal.TestHelpers.threadAndTaskWait;
 import static junit.framework.Assert.assertEquals;
 
 @Config(
-    // NOTE: We can remove "instrumentedPackages" if we make ShadowRoboNotificationManager's constructor public
-    instrumentedPackages = { "com.onesignal" },
     packageName = "com.onesignal.example",
     shadows = {
         ShadowRoboNotificationManager.class,
@@ -64,6 +67,16 @@ public class HMSDataMessageReceivedIntegrationTestsRunner {
         blankActivity = blankActivityController.get();
     }
 
+    @AfterClass
+    public static void afterEverything() throws Exception {
+        TestHelpers.beforeTestInitAndCleanup();
+    }
+
+    @After
+    public void afterEachTest() throws Exception {
+        TestHelpers.afterTestCleanup();
+    }
+
     private static @NonNull String helperBasicOSPayload() throws JSONException {
         return new JSONObject() {{
             put(PAYLOAD_OS_ROOT_CUSTOM, new JSONObject() {{
@@ -84,9 +97,12 @@ public class HMSDataMessageReceivedIntegrationTestsRunner {
     }
 
     @Test
-    public void basicPayload_shouldDisplayNotification() throws JSONException {
+    @Config(shadows = { ShadowGenerateNotification.class })
+    public void basicPayload_shouldDisplayNotification() throws Exception {
         blankActivityController.pause();
-        NotificationPayloadProcessorHMS.processDataMessageReceived(blankActivity, helperBasicOSPayload());
+        HMSProcessor_processDataMessageReceived(blankActivity, helperBasicOSPayload());
+        threadAndTaskWait();
+
         assertEquals(ALERT_TEST_MESSAGE_BODY, ShadowRoboNotificationManager.getLastShadowNotif().getBigText());
     }
 

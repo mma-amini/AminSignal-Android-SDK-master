@@ -7,7 +7,7 @@ import android.content.res.Resources;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.os.Build;
-import android.support.annotation.NonNull;
+import androidx.annotation.NonNull;
 import android.util.DisplayMetrics;
 import android.view.View;
 import android.view.Window;
@@ -52,12 +52,12 @@ class OSViewUtils {
         activity.getWindow().getDecorView().post(new Runnable() {
             @Override
             public void run() {
-                final ActivityLifecycleHandler handler = ActivityLifecycleListener.getActivityLifecycleHandler();
-                if (handler != null) {
-                    handler.addActivityAvailableListener(listenerKey, new ActivityLifecycleHandler.ActivityAvailableListener() {
+                final ActivityLifecycleHandler activityLifecycleHandler = ActivityLifecycleListener.getActivityLifecycleHandler();
+                if (activityLifecycleHandler!= null) {
+                    activityLifecycleHandler.addActivityAvailableListener(listenerKey, new ActivityLifecycleHandler.ActivityAvailableListener() {
                         @Override
                         void available(@NonNull Activity currentActivity) {
-                            handler.removeActivityAvailableListener(listenerKey);
+                            activityLifecycleHandler.removeActivityAvailableListener(listenerKey);
                             if (isActivityFullyReady(currentActivity))
                                 runnable.run();
                             else

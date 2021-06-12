@@ -25,10 +25,12 @@ import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.android.controller.ActivityController;
 import org.robolectric.annotation.Config;
+import org.robolectric.annotation.LooperMode;
 import org.robolectric.shadows.ShadowLog;
 
 import static com.onesignal.OneSignalPackagePrivateHelper.UserState.PUSH_STATUS_HMS_API_EXCEPTION_OTHER;
 import static com.onesignal.OneSignalPackagePrivateHelper.UserState.PUSH_STATUS_HMS_TOKEN_TIMEOUT;
+import static com.onesignal.ShadowOneSignalRestClient.setRemoteParamsGetHtmlResponse;
 import static com.test.onesignal.RestClientAsserts.assertHuaweiPlayerCreateAtIndex;
 import static com.test.onesignal.RestClientAsserts.assertPlayerCreateNotSubscribedAtIndex;
 import static com.test.onesignal.RestClientAsserts.assertPlayerCreateSubscribedAtIndex;
@@ -49,6 +51,7 @@ import static com.test.onesignal.TestHelpers.threadAndTaskWait;
     sdk = 26
 )
 @RunWith(RobolectricTestRunner.class)
+@LooperMode(LooperMode.Mode.LEGACY)
 public class PushRegistratorHMSIntegrationTestsRunner {
 
     @SuppressLint("StaticFieldLeak")
@@ -70,6 +73,9 @@ public class PushRegistratorHMSIntegrationTestsRunner {
 
         blankActivityController = Robolectric.buildActivity(BlankActivity.class).create();
         blankActivity = blankActivityController.get();
+
+        // Set remote_params GET response
+        setRemoteParamsGetHtmlResponse();
     }
 
     private static void assertHuaweiSubscribe() throws JSONException {
@@ -87,7 +93,8 @@ public class PushRegistratorHMSIntegrationTestsRunner {
 
     private void OneSignalInit() throws Exception {
         OneSignal.setLogLevel(OneSignal.LOG_LEVEL.VERBOSE, OneSignal.LOG_LEVEL.NONE);
-        OneSignal.init(blankActivity, "123456789", InAppMessagingHelpers.ONESIGNAL_APP_ID);
+        OneSignal.setAppId(InAppMessagingHelpers.ONESIGNAL_APP_ID);
+        OneSignal.initWithContext(blankActivity.getApplicationContext());
         blankActivityController.resume();
         threadAndTaskWait();
     }

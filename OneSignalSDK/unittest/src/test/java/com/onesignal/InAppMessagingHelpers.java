@@ -8,15 +8,17 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.UUID;
 
-import static com.onesignal.OneSignalPackagePrivateHelper.OSTestTrigger;
 import static com.onesignal.OneSignalPackagePrivateHelper.OSTestInAppMessage;
+import static com.onesignal.OneSignalPackagePrivateHelper.OSTestTrigger;
 import static com.onesignal.OneSignalPackagePrivateHelper.OSTestTrigger.OSTriggerKind;
 
 public class InAppMessagingHelpers {
     public static final String TEST_SPANISH_ANDROID_VARIANT_ID = "d8cc-11e4-bed1-df8f05be55ba-a4b3gj7f";
     public static final String TEST_ENGLISH_ANDROID_VARIANT_ID = "11e4-bed1-df8f05be55ba-a4b3gj7f-d8cc";
-    public static final String ONESIGNAL_APP_ID = "b2f7f966-d8cc-11e4-bed1-df8f05be55ba";
+    public static final String ONESIGNAL_APP_ID = "b4f7f966-d8cc-11e4-bed1-df8f05be55ba";
     public static final String IAM_CLICK_ID = "12345678-1234-1234-1234-123456789012";
+    public static final String IAM_PAGE_ID = "12345678-1234-ABCD-1234-123456789012";
+    public static final String IAM_HAS_LIQUID = "has_liquid";
 
     public static boolean evaluateMessage(OSInAppMessage message) {
         return OneSignal.getInAppMessageController().triggerController.evaluateMessageTriggers(message);
@@ -92,6 +94,17 @@ public class InAppMessagingHelpers {
         }};
 
         return json;
+    }
+
+    public static OSTestInAppMessage buildTestMessageWithLiquid(final JSONArray triggerJson) throws JSONException {
+        JSONObject json = basicIAMJSONObject(triggerJson);
+        json.put(IAM_HAS_LIQUID, true);
+        return new OSTestInAppMessage(json);
+    }
+
+    public static OSTestInAppMessage buildTestMessageWithSingleTriggerAndLiquid(final OSTriggerKind kind, final String key, final String operator, final Object value) throws JSONException {
+        JSONArray triggersJson = basicTrigger(kind, key, operator, value);
+        return buildTestMessageWithLiquid(triggersJson);
     }
 
     private static OSTestInAppMessage buildTestMessageWithMultipleDisplays(final JSONArray triggerJson, final int limit, final long delay) throws JSONException {
@@ -171,9 +184,17 @@ public class InAppMessagingHelpers {
             put("url", "https://www.onesignal.com");
             put("url_target", "webview");
             put("close", true);
+            put("pageId", IAM_PAGE_ID);
             put("data", new JSONObject() {{
                 put("test", "value");
             }});
+        }};
+    }
+
+    public static JSONObject buildTestPageJson() throws JSONException {
+        return new JSONObject() {{
+            put("pageIndex", 1);
+            put("pageId", IAM_PAGE_ID);
         }};
     }
 }

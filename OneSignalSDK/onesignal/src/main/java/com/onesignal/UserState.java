@@ -1,5 +1,7 @@
 package com.onesignal;
 
+import androidx.annotation.NonNull;
+
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -11,6 +13,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static com.onesignal.UserStateSynchronizer.APP_ID;
+import static com.onesignal.UserStateSynchronizer.EMAIL_AUTH_HASH_KEY;
+import static com.onesignal.UserStateSynchronizer.EXTERNAL_USER_ID_AUTH_HASH;
+import static com.onesignal.UserStateSynchronizer.SMS_AUTH_HASH_KEY;
+
 abstract class UserState {
 
     // Object to synchronize on to prevent concurrent modifications on syncValues and dependValues
@@ -21,6 +28,7 @@ abstract class UserState {
     public static final int DEVICE_TYPE_FIREOS = 2;
     public static final int DEVICE_TYPE_EMAIL = 11;
     public static final int DEVICE_TYPE_HUAWEI = 13;
+    public static final int DEVICE_TYPE_SMS = 14;
 
     public static final int PUSH_STATUS_SUBSCRIBED = 1;
     static final int PUSH_STATUS_NO_PERMISSION = 0;
@@ -43,7 +51,7 @@ abstract class UserState {
     public static final int PUSH_STATUS_HMS_API_EXCEPTION_OTHER = -27;
     public static final int PUSH_STATUS_MISSING_HMS_PUSHKIT_LIBRARY = -28;
 
-    private static final String[] LOCATION_FIELDS = new String[] { "lat", "long", "loc_acc", "loc_type", "loc_bg", "loc_time_stamp", "ad_id"};
+    private static final String[] LOCATION_FIELDS = new String[] { "lat", "long", "loc_acc", "loc_type", "loc_bg", "loc_time_stamp" };
     private static final Set<String> LOCATION_FIELDS_SET = new HashSet<>(Arrays.asList(LOCATION_FIELDS));
 
     private String persistKey;
@@ -59,7 +67,7 @@ abstract class UserState {
         return new ImmutableJSONObject();
     }
 
-    void setDependValues(JSONObject dependValues) {
+    public void setDependValues(JSONObject dependValues) {
         synchronized (LOCK) {
             this.dependValues = dependValues;
         }
@@ -86,7 +94,7 @@ abstract class UserState {
         }
     }
 
-    public void setSyncValues(JSONObject syncValues) {
+    public void setSyncValues(@NonNull JSONObject syncValues) {
         synchronized (LOCK) {
             this.syncValues = syncValues;
         }
@@ -227,7 +235,8 @@ abstract class UserState {
     }
 
     JSONObject generateJsonDiff(UserState newState, boolean isSessionCall) {
-        addDependFields(); newState.addDependFields();
+        addDependFields();
+        newState.addDependFields();
         Set<String> includeFields = getGroupChangeFields(newState);
         JSONObject sendJson = generateJsonDiff(syncValues, newState.syncValues, null, includeFields);
 
@@ -236,12 +245,14 @@ abstract class UserState {
 
         try {
             // app_id required for all REST API calls
-            if (!sendJson.has("app_id"))
-                sendJson.put("app_id", syncValues.optString("app_id"));
-            if (syncValues.has("email_auth_hash"))
-                sendJson.put("email_auth_hash", syncValues.optString("email_auth_hash"));
-            if (syncValues.has("external_user_id_auth_hash"))
-                sendJson.put("external_user_id_auth_hash", syncValues.optString("external_user_id_auth_hash"));
+            if (!sendJson.has(APP_ID))
+                sendJson.put(APP_ID, syncValues.optString(APP_ID));
+            if (syncValues.has(EMAIL_AUTH_HASH_KEY))
+                sendJson.put(EMAIL_AUTH_HASH_KEY, syncValues.optString(EMAIL_AUTH_HASH_KEY));
+            if (syncValues.has(SMS_AUTH_HASH_KEY))
+                sendJson.put(SMS_AUTH_HASH_KEY, syncValues.optString(SMS_AUTH_HASH_KEY));
+            if (syncValues.has(EXTERNAL_USER_ID_AUTH_HASH))
+                sendJson.put(EXTERNAL_USER_ID_AUTH_HASH, syncValues.optString(EXTERNAL_USER_ID_AUTH_HASH));
         } catch (JSONException e) {
             e.printStackTrace();
         }
@@ -288,21 +299,20 @@ abstract class UserState {
 
         String syncValuesStr = OneSignalPrefs.getString(OneSignalPrefs.PREFS_ONESIGNAL,
                 OneSignalPrefs.PREFS_ONESIGNAL_USERSTATE_SYNCVALYES_ + persistKey,null);
+
+        JSONObject syncValues = new JSONObject();
         try {
-            JSONObject syncValues;
             if (syncValuesStr == null) {
-                syncValues = new JSONObject();
-                String gtRegistrationId = OneSignalPrefs.getString(OneSignalPrefs.PREFS_ONESIGNAL,
+                String registrationId = OneSignalPrefs.getString(OneSignalPrefs.PREFS_ONESIGNAL,
                         OneSignalPrefs.PREFS_GT_REGISTRATION_ID,null);
-                syncValues.put("identifier", gtRegistrationId);
+                syncValues.put("identifier", registrationId);
             } else {
                 syncValues = new JSONObject(syncValuesStr);
             }
-
-            setSyncValues(syncValues);
         } catch (JSONException e) {
             e.printStackTrace();
         }
+        setSyncValues(syncValues);
     }
 
     void persistState() {

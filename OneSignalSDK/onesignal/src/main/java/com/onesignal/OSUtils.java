@@ -42,10 +42,13 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.v4.app.NotificationManagerCompat;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.core.app.NotificationManagerCompat;
 import android.telephony.TelephonyManager;
+import android.text.TextUtils;
+
+import androidx.legacy.content.WakefulBroadcastReceiver;
 
 import com.google.android.gms.common.GoogleApiAvailability;
 import com.huawei.hms.api.HuaweiApiAvailability;
@@ -54,13 +57,11 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -138,19 +139,9 @@ class OSUtils {
    // 1. Using Class instead of Strings as class renames would result incorrectly not finding the class
    // 2. class.getName() is called as if no method is called then the try-catch would be removed.
    //    - Only an issue when using Proguard (NOT R8) and using getDefaultProguardFile('proguard-android-optimize.txt')
-
    static boolean hasFCMLibrary() {
       try {
          com.google.firebase.messaging.FirebaseMessaging.class.getName();
-         return true;
-      } catch (NoClassDefFoundError e) {
-         return false;
-      }
-   }
-
-   private static boolean hasGCMLibrary() {
-      try {
-         com.google.android.gms.gcm.GoogleCloudMessaging.class.getName();
          return true;
       } catch (NoClassDefFoundError e) {
          return false;
@@ -210,18 +201,11 @@ class OSUtils {
 
    Integer checkForGooglePushLibrary() {
       boolean hasFCMLibrary = hasFCMLibrary();
-      boolean hasGCMLibrary = hasGCMLibrary();
 
-      if (!hasFCMLibrary && !hasGCMLibrary) {
+      if (!hasFCMLibrary) {
          Log(OneSignal.LOG_LEVEL.FATAL, "The Firebase FCM library is missing! Please make sure to include it in your project.");
          return UserState.PUSH_STATUS_MISSING_FIREBASE_FCM_LIBRARY;
       }
-
-      if (hasGCMLibrary && !hasFCMLibrary)
-         Log(OneSignal.LOG_LEVEL.WARN, "GCM Library detected, please upgrade to Firebase FCM library as GCM is deprecated!");
-
-      if (hasGCMLibrary && hasFCMLibrary)
-         Log(OneSignal.LOG_LEVEL.WARN, "Both GCM & FCM Libraries detected! Please remove the deprecated GCM library.");
 
       return null;
    }
@@ -229,7 +213,7 @@ class OSUtils {
    private static boolean hasWakefulBroadcastReceiver() {
       try {
          // noinspection ConstantConditions
-         return android.support.v4.content.WakefulBroadcastReceiver.class != null;
+         return WakefulBroadcastReceiver.class != null;
       } catch (Throwable e) {
          return false;
       }
@@ -238,7 +222,7 @@ class OSUtils {
    private static boolean hasNotificationManagerCompat() {
       try {
          // noinspection ConstantConditions
-         return android.support.v4.app.NotificationManagerCompat.class != null;
+         return androidx.core.app.NotificationManagerCompat.class != null;
       } catch (Throwable e) {
          return false;
       }
@@ -247,7 +231,7 @@ class OSUtils {
    private static boolean hasJobIntentService() {
       try {
          // noinspection ConstantConditions
-         return android.support.v4.app.JobIntentService.class != null;
+         return androidx.core.app.JobIntentService.class != null;
       } catch (Throwable e) {
          return false;
       }
@@ -333,8 +317,8 @@ class OSUtils {
    }
 
    private boolean supportsGooglePush() {
-      // 1. If app does not have the FCM or GCM library it won't support Google push
-      if (!hasFCMLibrary() && !hasGCMLibrary())
+      // 1. If app does not have the FCM library it won't support Google push
+      if (!hasFCMLibrary())
          return false;
 
       // 2. "Google Play services" must be installed and enabled
@@ -417,13 +401,31 @@ class OSUtils {
       }
    }
 
-   static String getManifestMeta(Context context, String metaName) {
+   static Bundle getManifestMetaBundle(Context context) {
+      ApplicationInfo ai;
       try {
-         ApplicationInfo ai = context.getPackageManager().getApplicationInfo(context.getPackageName(), PackageManager.GET_META_DATA);
-         Bundle bundle = ai.metaData;
+         ai = context.getPackageManager().getApplicationInfo(context.getPackageName(), PackageManager.GET_META_DATA);
+         return ai.metaData;
+      } catch (PackageManager.NameNotFoundException e) {
+         Log(OneSignal.LOG_LEVEL.ERROR, "Manifest application info not found", e);
+      }
+
+      return null;
+   }
+
+   static boolean getManifestMetaBoolean(Context context, String metaName) {
+      Bundle bundle = getManifestMetaBundle(context);
+      if (bundle != null) {
+         return bundle.getBoolean(metaName);
+      }
+
+      return false;
+   }
+
+   static String getManifestMeta(Context context, String metaName) {
+      Bundle bundle = getManifestMetaBundle(context);
+      if (bundle != null) {
          return bundle.getString(metaName);
-      } catch (Throwable t) {
-         Log(OneSignal.LOG_LEVEL.ERROR, "", t);
       }
 
       return null;
@@ -437,24 +439,6 @@ class OSUtils {
       return defaultStr;
    }
 
-   static String getCorrectedLanguage() {
-      String lang = Locale.getDefault().getLanguage();
-
-      // https://github.com/OneSignal/OneSignal-Android-SDK/issues/64
-      if (lang.equals("iw"))
-         return "he";
-      if (lang.equals("in"))
-         return "id";
-      if (lang.equals("ji"))
-         return "yi";
-
-      // https://github.com/OneSignal/OneSignal-Android-SDK/issues/98
-      if (lang.equals("zh"))
-         return lang + "-" + Locale.getDefault().getCountry();
-
-      return lang;
-   }
-
    static boolean isValidEmail(String email) {
       if (email == null)
          return false;
@@ -462,6 +446,10 @@ class OSUtils {
       String emRegex = "^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@((\\[[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\])|(([a-zA-Z\\-0-9]+\\.)+[a-zA-Z]{2,}))$";
       Pattern pattern = Pattern.compile(emRegex);
       return pattern.matcher(email).matches();
+   }
+
+   static boolean isStringNotEmpty(String body) {
+      return !TextUtils.isEmpty(body);
    }
 
    // Get the app's permission which will be false if the user disabled notifications for the app
@@ -528,9 +516,9 @@ class OSUtils {
       return null;
    }
 
-   static long[] parseVibrationPattern(JSONObject gcmBundle) {
+   static long[] parseVibrationPattern(JSONObject fcmBundle) {
       try {
-         Object patternObj = gcmBundle.opt("vib_pt");
+         Object patternObj = fcmBundle.opt("vib_pt");
          JSONArray jsonVibArray;
          if (patternObj instanceof String)
             jsonVibArray = new JSONArray((String)patternObj);
@@ -545,21 +533,6 @@ class OSUtils {
       } catch (JSONException e) {}
 
       return null;
-   }
-
-   static String hexDigest(String str, String digestInstance) throws Throwable {
-      MessageDigest digest = java.security.MessageDigest.getInstance(digestInstance);
-      digest.update(str.getBytes("UTF-8"));
-      byte messageDigest[] = digest.digest();
-
-      StringBuilder hexString = new StringBuilder();
-      for (byte aMessageDigest : messageDigest) {
-         String h = Integer.toHexString(0xFF & aMessageDigest);
-         while (h.length() < 2)
-            h = "0" + h;
-         hexString.append(h);
-      }
-      return hexString.toString();
    }
 
    static void sleep(int ms) {

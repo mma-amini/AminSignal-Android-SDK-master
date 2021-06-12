@@ -6,6 +6,7 @@ import android.app.NotificationChannelGroup;
 import android.app.NotificationManager;
 import android.content.Context;
 
+import com.onesignal.OneSignal;
 import com.onesignal.ShadowOSUtils;
 import com.onesignal.ShadowOneSignal;
 import com.onesignal.ShadowRoboNotificationManager;
@@ -28,6 +29,7 @@ import java.math.BigInteger;
 
 import static com.onesignal.OneSignalPackagePrivateHelper.NotificationChannelManager_createNotificationChannel;
 import static com.onesignal.OneSignalPackagePrivateHelper.NotificationChannelManager_processChannelList;
+import static com.test.onesignal.TestHelpers.threadAndTaskWait;
 import static junit.framework.TestCase.assertTrue;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -36,13 +38,11 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
 @Config(packageName = "com.onesignal.example",
-        instrumentedPackages = { "com.onesignal" },
         shadows = {
             ShadowOSUtils.class,
             ShadowRoboNotificationManager.class},
          sdk = 26
 )
-
 @RunWith(RobolectricTestRunner.class)
 public class NotificationChannelManagerRunner {
 
@@ -208,6 +208,9 @@ public class NotificationChannelManagerRunner {
    // Top level keys under no language key are considered the default language.
    @Test
    public void processChannelListWithMultiLanguage() throws Exception {
+      OneSignal.initWithContext(blankActivity);
+      threadAndTaskWait();
+
       JSONObject payload = createBasicChannelListPayload();
    
       JSONObject channelItem = (JSONObject)payload.optJSONArray("chnl_lst").get(0);
