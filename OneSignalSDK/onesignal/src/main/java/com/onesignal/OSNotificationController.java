@@ -30,33 +30,39 @@ package com.onesignal;
 import android.content.Context;
 
 import androidx.annotation.Nullable;
+import androidx.concurrent.futures.CallbackToFutureAdapter;
+import androidx.work.ListenableWorker;
 
 import org.json.JSONObject;
 
 import static com.onesignal.OSUtils.isStringNotEmpty;
 
 public class OSNotificationController {
-
+   
    // The extension service app AndroidManifest.xml meta data tag key name
    private static final String EXTENSION_SERVICE_META_DATA_TAG_NAME = "com.onesignal.NotificationServiceExtension";
-
+   
+   private final CallbackToFutureAdapter.Completer<ListenableWorker.Result> callbackCompleter;
    private final OSNotificationGenerationJob notificationJob;
    private boolean restoring;
    private boolean fromBackgroundLogic;
-
+   
    OSNotificationController(OSNotificationGenerationJob notificationJob, boolean restoring, boolean fromBackgroundLogic) {
       this.restoring = restoring;
       this.fromBackgroundLogic = fromBackgroundLogic;
       this.notificationJob = notificationJob;
+      this.callbackCompleter = notificationJob.getCallbackCompleter();
    }
-
-   OSNotificationController(Context context, JSONObject jsonPayload, boolean restoring, boolean fromBackgroundLogic, Long timestamp) {
+   
+   OSNotificationController(CallbackToFutureAdapter.Completer<ListenableWorker.Result> callbackCompleter,
+                            Context context, JSONObject jsonPayload, boolean restoring, boolean fromBackgroundLogic, Long timestamp) {
+      this.callbackCompleter = callbackCompleter;
       this.restoring = restoring;
       this.fromBackgroundLogic = fromBackgroundLogic;
-
+      
       notificationJob = createNotificationJobFromCurrent(context, jsonPayload, timestamp);
    }
-
+   
    /**
     * Using current {@link OSNotificationController} class attributes, builds a {@link OSNotificationGenerationJob}
     *    instance and returns it
@@ -64,13 +70,13 @@ public class OSNotificationController {
     * @see OSNotificationGenerationJob
     */
    private OSNotificationGenerationJob createNotificationJobFromCurrent(Context context, JSONObject jsonPayload, Long timestamp) {
-      OSNotificationGenerationJob notificationJob = new OSNotificationGenerationJob(context);
+      OSNotificationGenerationJob notificationJob = new OSNotificationGenerationJob(callbackCompleter, context);
       notificationJob.setJsonPayload(jsonPayload);
       notificationJob.setShownTimeStamp(timestamp);
       notificationJob.setRestoring(restoring);
       return notificationJob;
    }
-
+   
    /**
     * Called from {@link OSNotificationReceivedEvent#complete(OSNotification)} class
     * If the notification modified by the user is null, the notification will be silent, otherwise will be displayed
@@ -98,7 +104,7 @@ public class OSNotificationController {
          notDisplayNotificationLogic(originalNotification);
       }
    }
-
+   
    private void notDisplayNotificationLogic(OSNotification originalNotification) {
       notificationJob.setNotification(originalNotification);
       // Save as processed to prevent possible duplicate calls from canonical ids
@@ -113,31 +119,31 @@ public class OSNotificationController {
          OneSignal.handleNotificationReceived(notificationJob);
       }
    }
-
+   
    public OSNotificationGenerationJob getNotificationJob() {
       return notificationJob;
    }
-
+   
    public OSNotificationReceivedEvent getNotificationReceivedEvent() {
       return new OSNotificationReceivedEvent(this, notificationJob.getNotification());
    }
-
+   
    public boolean isRestoring() {
       return restoring;
    }
-
+   
    public void setRestoring(boolean restoring) {
       this.restoring = restoring;
    }
-
+   
    public boolean isFromBackgroundLogic() {
       return fromBackgroundLogic;
    }
-
+   
    public void setFromBackgroundLogic(boolean fromBackgroundLogic) {
       this.fromBackgroundLogic = fromBackgroundLogic;
    }
-
+   
    /**
     * In addition to using the setters to set all of the handlers you can also create your own implementation
     *  within a separate class and give your AndroidManifest.xml a special meta data tag
@@ -158,13 +164,13 @@ public class OSNotificationController {
     */
    static void setupNotificationServiceExtension(Context context) {
       String className = OSUtils.getManifestMeta(context, EXTENSION_SERVICE_META_DATA_TAG_NAME);
-
+      
       // No meta data containing extension service class name
       if (className == null) {
          OneSignal.onesignalLog(OneSignal.LOG_LEVEL.VERBOSE, "No class found, not setting up OSRemoteNotificationReceivedHandler");
          return;
       }
-
+      
       OneSignal.onesignalLog(OneSignal.LOG_LEVEL.VERBOSE, "Found class: " + className + ", attempting to call constructor");
       // Pass an instance of the given class to set any overridden handlers
       try {
@@ -182,13 +188,13 @@ public class OSNotificationController {
          e.printStackTrace();
       }
    }
-
+   
    @Override
    public String toString() {
       return "OSNotificationController{" +
-              "notificationJob=" + notificationJob +
-              ", isRestoring=" + restoring +
-              ", isBackgroundLogic=" + fromBackgroundLogic +
-              '}';
+             "notificationJob=" + notificationJob +
+             ", isRestoring=" + restoring +
+             ", isBackgroundLogic=" + fromBackgroundLogic +
+             '}';
    }
 }

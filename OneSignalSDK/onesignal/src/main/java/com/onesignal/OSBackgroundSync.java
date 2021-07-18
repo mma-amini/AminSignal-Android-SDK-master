@@ -42,22 +42,22 @@ import androidx.annotation.RequiresApi;
 import com.onesignal.AndroidSupportV4Compat.ContextCompat;
 
 abstract class OSBackgroundSync {
-
+    
     protected static final Object LOCK = new Object();
     protected boolean needsJobReschedule = false;
-
+    
     private Thread syncBgThread;
-
+    
     protected abstract String getSyncTaskThreadId();
-
+    
     protected abstract int getSyncTaskId();
-
+    
     protected abstract Class getSyncServiceJobClass();
-
+    
     protected abstract Class getSyncServicePendingIntentClass();
-
+    
     protected abstract void scheduleSyncTask(Context context);
-
+    
     // Entry point from SyncJobService and SyncService when the job is kicked off
     void doBackgroundSync(Context context, Runnable runnable) {
         OneSignal.onesignalLog(OneSignal.LOG_LEVEL.DEBUG, "OSBackground sync, calling initWithContext");
@@ -65,18 +65,18 @@ abstract class OSBackgroundSync {
         syncBgThread = new Thread(runnable, getSyncTaskThreadId());
         syncBgThread.start();
     }
-
+    
     boolean stopSyncBgThread() {
         if (syncBgThread == null)
             return false;
-
+        
         if (!syncBgThread.isAlive())
             return false;
-
+        
         syncBgThread.interrupt();
         return true;
     }
-
+    
     /**
      * The main schedule method for all SyncTasks - this method differentiates between
      * Legacy Android versions (pre-LOLLIPOP 21) and 21+ to execute an Alarm (<21) or a Job (>=21)
@@ -92,14 +92,14 @@ abstract class OSBackgroundSync {
                 scheduleSyncServiceAsAlarm(context, delayMs);
         }
     }
-
+    
     private boolean hasBootPermission(Context context) {
         return ContextCompat.checkSelfPermission(
-                context,
-                "android.permission.RECEIVE_BOOT_COMPLETED"
+          context,
+          "android.permission.RECEIVE_BOOT_COMPLETED"
         ) == PackageManager.PERMISSION_GRANTED;
     }
-
+    
     @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     private boolean isJobIdRunning(Context context) {
         final JobScheduler jobScheduler = (JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE);
@@ -110,11 +110,11 @@ abstract class OSBackgroundSync {
         }
         return false;
     }
-
+    
     @RequiresApi(21)
     private void scheduleSyncServiceAsJob(Context context, long delayMs) {
         OneSignal.Log(OneSignal.LOG_LEVEL.VERBOSE, "OSBackgroundSync scheduleSyncServiceAsJob:atTime: " + delayMs);
-
+        
         if (isJobIdRunning(context)) {
             OneSignal.Log(OneSignal.LOG_LEVEL.VERBOSE, "OSBackgroundSync scheduleSyncServiceAsJob Scheduler already running!");
             // If a JobScheduler is schedule again while running it will stop current job. We will schedule again when finished.
@@ -122,19 +122,19 @@ abstract class OSBackgroundSync {
             needsJobReschedule = true;
             return;
         }
-
+        
         JobInfo.Builder jobBuilder = new JobInfo.Builder(
-                getSyncTaskId(),
-                new ComponentName(context, getSyncServiceJobClass())
+          getSyncTaskId(),
+          new ComponentName(context, getSyncServiceJobClass())
         );
-
+        
         jobBuilder
-                .setMinimumLatency(delayMs)
-                .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY);
-
+          .setMinimumLatency(delayMs)
+          .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY);
+        
         if (hasBootPermission(context))
             jobBuilder.setPersisted(true);
-
+        
         JobScheduler jobScheduler = (JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE);
         try {
             int result = jobScheduler.schedule(jobBuilder.build());
@@ -143,20 +143,20 @@ abstract class OSBackgroundSync {
             // Catch for buggy Oppo devices
             // https://github.com/OneSignal/OneSignal-Android-SDK/issues/487
             OneSignal.Log(OneSignal.LOG_LEVEL.ERROR,
-                    "scheduleSyncServiceAsJob called JobScheduler.jobScheduler which " +
-                            "triggered an internal null Android error. Skipping job.", e);
+                          "scheduleSyncServiceAsJob called JobScheduler.jobScheduler which " +
+                          "triggered an internal null Android error. Skipping job.", e);
         }
     }
-
+    
     private void scheduleSyncServiceAsAlarm(Context context, long delayMs) {
         OneSignal.Log(OneSignal.LOG_LEVEL.VERBOSE, this.getClass().getSimpleName() + " scheduleServiceSyncTask:atTime: " + delayMs);
-
+        
         PendingIntent pendingIntent = syncServicePendingIntent(context);
         AlarmManager alarm = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         long triggerAtMs = OneSignal.getTime().getCurrentTimeMillis() + delayMs;
-        alarm.set(AlarmManager.RTC_WAKEUP, triggerAtMs + delayMs, pendingIntent);
+        alarm.set(AlarmManager.RTC_WAKEUP, triggerAtMs, pendingIntent);
     }
-
+    
     protected void cancelBackgroundSyncTask(Context context) {
         OneSignal.onesignalLog(OneSignal.LOG_LEVEL.DEBUG, this.getClass().getSimpleName() + " cancel background sync");
         synchronized (LOCK) {
@@ -169,19 +169,19 @@ abstract class OSBackgroundSync {
             }
         }
     }
-
+    
     private PendingIntent syncServicePendingIntent(Context context) {
         // KEEP - PendingIntent.FLAG_UPDATE_CURRENT
         //          Some Samsung devices will throw the below exception otherwise.
         //          "java.lang.SecurityException: !@Too many alarms (500) registered"
         return PendingIntent.getService(
-                context,
-                getSyncTaskId(),
-                new Intent(context, getSyncServicePendingIntentClass()),
-                PendingIntent.FLAG_UPDATE_CURRENT
+          context,
+          getSyncTaskId(),
+          new Intent(context, getSyncServicePendingIntentClass()),
+          PendingIntent.FLAG_UPDATE_CURRENT
         );
     }
-
+    
     private static boolean useJob() {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP;
     }
